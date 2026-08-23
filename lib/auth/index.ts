@@ -5,6 +5,8 @@ import { emailOTP } from "better-auth/plugins";
 import { withCloudflare } from "better-auth-cloudflare";
 
 import { createDb, type Database } from "@/db/client";
+
+import { createKvSecondaryStorage } from "./kv-storage";
 import { sendLoginOtpEmail } from "./send-otp";
 
 type AuthEnv = Pick<
@@ -30,11 +32,6 @@ export function createAuth(env?: AuthEnv, baseURL?: string) {
         geolocationTracking: false,
         cf: {},
         d1: db ? { db, options: { usePlural: false } } : undefined,
-        // better-auth-cloudflare types its bindings against the
-        // @cloudflare/workers-types package while our bindings come from the
-        // workerd runtime types wrangler generates. The two describe the same
-        // object but are nominally distinct, so bridge them here.
-        kv: env?.RATE_LIMIT as unknown as Parameters<typeof withCloudflare>[0]["kv"],
       },
       {
         emailAndPassword: { enabled: false },
@@ -51,11 +48,29 @@ export function createAuth(env?: AuthEnv, baseURL?: string) {
         account: {
           accountLinking: { enabled: true, trustedProviders: ["google", "email-otp"] },
         },
+        databaseHooks: {
+          user: {
+            create: {
+              // Email OTP sign-up carries no display name, which would leave the
+              // account showing an empty string everywhere.
+              before: async (user) => ({
+                data: { ...user, name: user.name?.trim() || user.email.split("@")[0] },
+              }),
+            },
+          },
+        },
         rateLimit: {
           enabled: true,
-          // Cloudflare KV enforces a 60s minimum TTL, so the window cannot be shorter.
+          // D1, not KV: better-auth needs an atomic increment to count requests
+          // and KV has none. The counters live in the `rateLimit` table.
+          storage: "database",
           window: 60,
           max: 100,
+          customRules: {
+            // Sending a code costs us an email, so cap it much harder.
+            "/email-otp/send-verification-otp": { window: 60, max: 5 },
+            "/sign-in/email-otp": { window: 60, max: 10 },
+          },
         },
         plugins: [
           emailOTP({
@@ -71,6 +86,9 @@ export function createAuth(env?: AuthEnv, baseURL?: string) {
         ],
       },
     ),
+    // Overrides the adapter better-auth-cloudflare installs, which predates the
+    // getAndDelete/increment methods better-auth now requires. See kv-storage.ts.
+    secondaryStorage: env ? createKvSecondaryStorage(env.RATE_LIMIT) : undefined,
     // The CLI has no bindings, so give it a bare adapter just for schema generation.
     ...(env
       ? {}
@@ -79,8 +97,5 @@ export function createAuth(env?: AuthEnv, baseURL?: string) {
         }),
   });
 }
-
-/** Consumed by `npx @better-auth/cli generate`. Never used at runtime. */
-export const auth = createAuth();
 
 export type Auth = ReturnType<typeof createAuth>;
