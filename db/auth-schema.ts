@@ -1,10 +1,13 @@
 /**
  * better-auth tables.
  *
- * Generated with `npx @better-auth/cli generate` and then reconciled against the
- * models the installed better-auth runtime actually asks for -- the published CLI
- * lags the library, so `account.issuer` had to be added by hand.
- * `scripts/check-auth-schema.ts` fails the build if that drift ever reappears.
+ * Generated with:
+ *   npx @better-auth/cli generate --config lib/auth/cli.ts --output db/auth-schema.ts -y
+ *
+ * then reconciled against the models the installed better-auth runtime actually
+ * asks for -- the published CLI lags the library, so `account.issuer` has to be
+ * added by hand after every regeneration.
+ * `scripts/check-auth-schema.ts` fails the build if that drift reappears.
  */
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
@@ -93,6 +96,13 @@ export const verification = sqliteTable(
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
+
+export const rateLimit = sqliteTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: integer("last_request").notNull(),
+});
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
