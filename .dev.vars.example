@@ -1,8 +1,8 @@
 # Copy to `.dev.vars` for local development (`.dev.vars` is git-ignored).
 # In production these are set with `wrangler secret put <NAME>`.
 
-# Anthropic Messages API key used by lib/vision.ts for book recognition.
-ANTHROPIC_API_KEY="sk-ant-..."
+# Google Gemini API key used by lib/vision.ts for book recognition.
+GEMINI_API_KEY="AIza..."
 
 # Random 32+ byte string. Generate with: openssl rand -base64 32
 BETTER_AUTH_SECRET="replace-with-a-long-random-string"

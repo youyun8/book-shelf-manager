@@ -72,4 +72,39 @@ describe("rate limiting", () => {
     });
     expect(result.retryAfterSeconds).toBe(15);
   });
+
+  it("supports a longer shared window for provider usage caps", async () => {
+    const id = identifier();
+    const day = 24 * 60 * 60;
+    const now = Date.UTC(2026, 0, 1, 12, 0, 30);
+
+    expect(
+      await consumeRateLimit({
+        kv: env.RATE_LIMIT,
+        identifier: id,
+        limit: 1,
+        windowSeconds: day,
+        now,
+      }),
+    ).toMatchObject({ allowed: true, remaining: 0 });
+    expect(
+      await consumeRateLimit({
+        kv: env.RATE_LIMIT,
+        identifier: id,
+        limit: 1,
+        windowSeconds: day,
+        now,
+      }),
+    ).toMatchObject({ allowed: false, retryAfterSeconds: 43_170 });
+
+    expect(
+      await consumeRateLimit({
+        kv: env.RATE_LIMIT,
+        identifier: id,
+        limit: 1,
+        windowSeconds: day,
+        now: now + day * 1000,
+      }),
+    ).toMatchObject({ allowed: true });
+  });
 });

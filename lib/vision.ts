@@ -1,19 +1,17 @@
 /**
- * Book recognition through the Anthropic Messages API.
+ * Book recognition through the Google Gemini Generate Content API.
  *
  * Called with `fetch` rather than the SDK so the worker bundle carries no
- * Node-only dependencies. The model is forced to answer through a tool call,
- * which is what makes the reply a validated object instead of prose that
- * happens to contain JSON.
+ * Node-only dependencies. Gemini's structured output mode keeps the response
+ * machine-readable while the application still validates every field.
  */
 import { arrayBufferToBase64 } from "./base64";
 
-const API_URL = "https://api.anthropic.com/v1/messages";
-const API_VERSION = "2023-06-01";
-const MODEL = "claude-sonnet-4-5";
-const MAX_TOKENS = 8192;
+const MODEL = "gemini-2.5-flash-lite";
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const MAX_OUTPUT_TOKENS = 8192;
 
-/** The Messages API accepts these image types; HEIC is not among them. */
+/** The Gemini API accepts these image types; HEIC is not among them. */
 const SUPPORTED_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 
 /** Per-image ceiling enforced by the API, applied to the encoded payload. */
@@ -22,7 +20,40 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Books below this confidence are flagged for the user to confirm. */
 export const REVIEW_CONFIDENCE_THRESHOLD = 0.6;
 
-const TOOL_NAME = "record_books";
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    books: {
+      type: "array",
+      description: "One entry per distinct book visible in the photograph.",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Title as printed on the book." },
+          authors: {
+            type: "array",
+            items: { type: "string" },
+            description: "Author names as printed. Empty if none are legible.",
+          },
+          publisher: {
+            type: ["string", "null"],
+            description: "Publisher as printed, or null if not legible.",
+          },
+          isbn: {
+            type: ["string", "null"],
+            description: "ISBN if visibly printed on the book, otherwise null.",
+          },
+          confidence: {
+            type: "number",
+            description: "0-1 confidence that title and authors are both correct.",
+          },
+        },
+        required: ["title", "authors", "publisher", "isbn", "confidence"],
+      },
+    },
+  },
+  required: ["books"],
+} as const;
 
 const SYSTEM_PROMPT = `You identify books in photographs of bookshelves, stacks and piles.
 
@@ -42,46 +73,7 @@ Rules:
   blurred, partly hidden, or you are inferring the book from a fragment.
 - If the photo contains no identifiable books, return an empty list.`;
 
-const USER_PROMPT = "Identify every book in this photo and record them with the record_books tool.";
-
-const TOOL_DEFINITION = {
-  name: TOOL_NAME,
-  description: "Record every book identified in the photograph.",
-  input_schema: {
-    type: "object",
-    properties: {
-      books: {
-        type: "array",
-        description: "One entry per distinct book visible in the photo.",
-        items: {
-          type: "object",
-          properties: {
-            title: { type: "string", description: "Title as printed on the book." },
-            authors: {
-              type: "array",
-              items: { type: "string" },
-              description: "Author names as printed. Empty if none are legible.",
-            },
-            publisher: {
-              type: ["string", "null"],
-              description: "Publisher as printed, or null if not legible.",
-            },
-            isbn: {
-              type: ["string", "null"],
-              description: "ISBN if visibly printed on the book, otherwise null.",
-            },
-            confidence: {
-              type: "number",
-              description: "0-1 confidence that title and authors are both correct.",
-            },
-          },
-          required: ["title", "authors", "publisher", "isbn", "confidence"],
-        },
-      },
-    },
-    required: ["books"],
-  },
-} as const;
+const USER_PROMPT = "Identify every book in this photo.";
 
 export type DetectedBook = {
   title: string;
@@ -120,10 +112,14 @@ export const VISION_ERROR_MESSAGES: Record<VisionErrorCode, string> = {
   invalid_response: "辨識服務回傳了無法解析的內容，請再試一次。",
 };
 
-type MessagesResponse = {
-  stop_reason?: string;
-  stop_details?: { category?: string | null; explanation?: string } | null;
-  content?: { type: string; name?: string; input?: unknown; text?: string }[];
+type GeminiPart = { text?: string };
+
+type GeminiResponse = {
+  promptFeedback?: { blockReason?: string };
+  candidates?: {
+    finishReason?: string;
+    content?: { parts?: GeminiPart[] };
+  }[];
 };
 
 function isRetryableStatus(status: number): boolean {
@@ -157,29 +153,31 @@ function normaliseBook(value: unknown): DetectedBook | null {
 }
 
 /**
- * Pulls the book list out of the response.
+ * Pulls the structured book list out of a Gemini response.
  *
- * The model is told to answer with a tool call, so a reply without one is a
- * failure -- but its text is preserved for debugging rather than discarded.
+ * Structured output guarantees JSON syntax, not that the values are correct,
+ * so the application still validates and normalises every returned book.
  */
-function parseResponse(body: MessagesResponse, raw: string): DetectedBook[] {
-  if (body.stop_reason === "refusal") {
-    throw new VisionError("invalid_response", "The model declined to describe this image.", raw);
+function parseResponse(body: GeminiResponse, raw: string): DetectedBook[] {
+  const candidate = body.candidates?.[0];
+  const text = candidate?.content?.parts?.find((part) => typeof part.text === "string")?.text;
+
+  if (!text || candidate?.finishReason === "SAFETY" || body.promptFeedback?.blockReason) {
+    throw new VisionError("invalid_response", "Gemini did not return book data.", raw);
   }
 
-  const toolUse = body.content?.find(
-    (block) => block.type === "tool_use" && block.name === TOOL_NAME,
-  );
-  if (!toolUse) {
-    throw new VisionError("invalid_response", "The model did not call the tool.", raw);
+  let parsed: { books?: unknown };
+  try {
+    parsed = JSON.parse(text) as { books?: unknown };
+  } catch {
+    throw new VisionError("invalid_response", "Gemini returned invalid structured output.", raw);
   }
 
-  const input = toolUse.input as { books?: unknown } | undefined;
-  if (!input || !Array.isArray(input.books)) {
-    throw new VisionError("invalid_response", "The tool call had no book list.", raw);
+  if (!Array.isArray(parsed.books)) {
+    throw new VisionError("invalid_response", "Gemini returned no book list.", raw);
   }
 
-  return input.books.map(normaliseBook).filter((book): book is DetectedBook => book !== null);
+  return parsed.books.map(normaliseBook).filter((book): book is DetectedBook => book !== null);
 }
 
 export type RecognizeOptions = {
@@ -209,7 +207,7 @@ export async function recognizeBooks({
   retryDelayMs = 500,
 }: RecognizeOptions): Promise<RecognizeResult> {
   if (!apiKey) {
-    throw new VisionError("missing_api_key", "ANTHROPIC_API_KEY is not configured.");
+    throw new VisionError("missing_api_key", "GEMINI_API_KEY is not configured.");
   }
 
   const normalisedType = mediaType.toLowerCase();
@@ -221,29 +219,27 @@ export async function recognizeBooks({
   }
 
   const payload = JSON.stringify({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
-    tools: [TOOL_DEFINITION],
-    // Forcing the tool is what makes the reply a structured object rather than
-    // prose we would have to scrape JSON out of.
-    tool_choice: { type: "tool", name: TOOL_NAME },
-    messages: [
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [
       {
         role: "user",
-        content: [
+        parts: [
           {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: normalisedType,
+            inlineData: {
+              mimeType: normalisedType,
               data: arrayBufferToBase64(image),
             },
           },
-          { type: "text", text: USER_PROMPT },
+          { text: USER_PROMPT },
         ],
       },
     ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      responseMimeType: "application/json",
+      responseSchema: RESPONSE_SCHEMA,
+    },
   });
 
   let lastError: VisionError | undefined;
@@ -259,15 +255,14 @@ export async function recognizeBooks({
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": API_VERSION,
+          "x-goog-api-key": apiKey,
         },
         body: payload,
       });
     } catch (cause) {
       lastError = new VisionError(
         "api_error",
-        `Request to the Messages API failed: ${String(cause)}`,
+        `Request to the Gemini API failed: ${String(cause)}`,
       );
       continue;
     }
@@ -277,16 +272,16 @@ export async function recognizeBooks({
     if (!response.ok) {
       lastError = new VisionError(
         "api_error",
-        `Messages API returned ${response.status}: ${text.slice(0, 500)}`,
+        `Gemini API returned ${response.status}: ${text.slice(0, 500)}`,
         text,
       );
       if (isRetryableStatus(response.status)) continue;
       throw lastError;
     }
 
-    let body: MessagesResponse;
+    let body: GeminiResponse;
     try {
-      body = JSON.parse(text) as MessagesResponse;
+      body = JSON.parse(text) as GeminiResponse;
     } catch {
       // Malformed JSON from a 200 will not fix itself on a retry.
       throw new VisionError("invalid_response", "The response body was not valid JSON.", text);
@@ -295,5 +290,5 @@ export async function recognizeBooks({
     return { books: parseResponse(body, text), raw: text };
   }
 
-  throw lastError ?? new VisionError("api_error", "The Messages API could not be reached.");
+  throw lastError ?? new VisionError("api_error", "The Gemini API could not be reached.");
 }

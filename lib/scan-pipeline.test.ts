@@ -48,11 +48,15 @@ beforeEach(async () => {
   await seedScan();
 });
 
-function anthropicResponse(books: unknown) {
+function geminiResponse(books: unknown) {
   return new Response(
     JSON.stringify({
-      stop_reason: "tool_use",
-      content: [{ type: "tool_use", id: "toolu_1", name: "record_books", input: { books } }],
+      candidates: [
+        {
+          finishReason: "STOP",
+          content: { parts: [{ text: JSON.stringify({ books }) }] },
+        },
+      ],
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
@@ -70,13 +74,13 @@ function googleBooksResponse(info: unknown) {
 
 /** Routes the pipeline's outbound calls to canned replies. */
 function fakeFetch(handlers: {
-  anthropic?: () => Response | Promise<Response>;
+  gemini?: () => Response | Promise<Response>;
   googleBooks?: (url: string) => Response | Promise<Response>;
 }) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
-    if (url.startsWith("https://api.anthropic.com")) {
-      return handlers.anthropic?.() ?? anthropicResponse([]);
+    if (url.startsWith("https://generativelanguage.googleapis.com")) {
+      return handlers.gemini?.() ?? geminiResponse([]);
     }
     if (url.startsWith("https://www.googleapis.com")) {
       return handlers.googleBooks?.(url) ?? googleBooksResponse(null);
@@ -116,7 +120,7 @@ const VOLUME = {
 describe("the happy path", () => {
   it("recognises books, enriches them and records the scan as done", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () => anthropicResponse(DETECTED),
+      gemini: () => geminiResponse(DETECTED),
       googleBooks: (url) =>
         url.includes(encodeURIComponent("isbn:9789864791422"))
           ? googleBooksResponse(VOLUME)
@@ -132,7 +136,7 @@ describe("the happy path", () => {
     expect(scan?.detectedCount).toBe(2);
     expect(scan?.errorMessage).toBeNull();
     // The unparsed reply is kept so a bad response can be inspected later.
-    expect(scan?.rawResult).toContain("record_books");
+    expect(scan?.rawResult).toContain("books");
 
     const books = await listBooks(userId, testDb());
     expect(books).toHaveLength(2);
@@ -158,8 +162,8 @@ describe("the happy path", () => {
 
   it("flags a low-confidence reading for review even when the lookup succeeds", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () =>
-        anthropicResponse([
+      gemini: () =>
+        geminiResponse([
           { title: "看不太清楚", authors: ["某人"], publisher: null, isbn: null, confidence: 0.4 },
         ]),
       googleBooks: () => googleBooksResponse({ title: "看不太清楚", authors: ["某人"] }),
@@ -174,8 +178,8 @@ describe("the happy path", () => {
 
   it("flags a book for review when Google Books has nothing, keeping what was read", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () =>
-        anthropicResponse([
+      gemini: () =>
+        geminiResponse([
           {
             title: "冷門書",
             authors: ["作者"],
@@ -200,7 +204,7 @@ describe("the happy path", () => {
   });
 
   it("records an empty shelf as a successful scan with nothing found", async () => {
-    const fetchImpl = fakeFetch({ anthropic: () => anthropicResponse([]) });
+    const fetchImpl = fakeFetch({ gemini: () => geminiResponse([]) });
 
     const result = await processScan({ userId, scanId, apiKey: "k", fetchImpl });
 
@@ -211,7 +215,7 @@ describe("the happy path", () => {
 
   it("does not add a book the user already owns", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () => anthropicResponse([DETECTED[0]]),
+      gemini: () => geminiResponse([DETECTED[0]]),
       googleBooks: () => googleBooksResponse(VOLUME),
     });
 
@@ -229,7 +233,7 @@ describe("the happy path", () => {
 describe("error paths", () => {
   it("marks the scan failed with a readable message when the API keeps erroring", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () => new Response("upstream is down", { status: 503 }),
+      gemini: () => new Response("upstream is down", { status: 503 }),
     });
 
     const result = await processScan({ userId, scanId, apiKey: "k", fetchImpl });
@@ -243,7 +247,7 @@ describe("error paths", () => {
 
   it("stores the raw reply when the model does not return valid JSON", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () =>
+      gemini: () =>
         new Response("<html>502 Bad Gateway</html>", {
           status: 200,
           headers: { "content-type": "text/html" },
@@ -281,7 +285,7 @@ describe("error paths", () => {
 
   it("keeps the books when only the metadata lookup fails", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () => anthropicResponse([DETECTED[0]]),
+      gemini: () => geminiResponse([DETECTED[0]]),
       googleBooks: () => {
         throw new Error("connection reset");
       },
@@ -296,12 +300,12 @@ describe("error paths", () => {
   });
 
   it("clears a previous error when the scan is retried", async () => {
-    const failing = fakeFetch({ anthropic: () => new Response("boom", { status: 500 }) });
+    const failing = fakeFetch({ gemini: () => new Response("boom", { status: 500 }) });
     await processScan({ userId, scanId, apiKey: "k", fetchImpl: failing });
     expect((await getScan(userId, testDb(), scanId))?.status).toBe("failed");
 
     const succeeding = fakeFetch({
-      anthropic: () => anthropicResponse([DETECTED[0]]),
+      gemini: () => geminiResponse([DETECTED[0]]),
       googleBooks: () => googleBooksResponse(VOLUME),
     });
     const result = await processScan({ userId, scanId, apiKey: "k", fetchImpl: succeeding });
@@ -315,7 +319,7 @@ describe("error paths", () => {
 
 describe("isolation", () => {
   it("refuses to process another user's scan", async () => {
-    const fetchImpl = fakeFetch({ anthropic: () => anthropicResponse(DETECTED) });
+    const fetchImpl = fakeFetch({ gemini: () => geminiResponse(DETECTED) });
 
     const result = await processScan({ userId: otherUserId, scanId, apiKey: "k", fetchImpl });
 
@@ -329,7 +333,7 @@ describe("isolation", () => {
 
   it("writes the books to the scan's owner only", async () => {
     const fetchImpl = fakeFetch({
-      anthropic: () => anthropicResponse([DETECTED[0]]),
+      gemini: () => geminiResponse([DETECTED[0]]),
       googleBooks: () => googleBooksResponse(VOLUME),
     });
 
