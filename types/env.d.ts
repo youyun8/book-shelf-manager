@@ -9,4 +9,10 @@ interface CloudflareEnv {
   BETTER_AUTH_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /** Comma-separated extra origins allowed to call the auth API. */
+  TRUSTED_ORIGINS?: string;
+  /** Optional Resend API key; without it OTP codes are logged instead of emailed. */
+  RESEND_API_KEY?: string;
+  /** From address for OTP emails. */
+  OTP_FROM_EMAIL?: string;
 }

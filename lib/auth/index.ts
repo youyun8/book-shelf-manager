@@ -12,7 +12,22 @@ import { sendLoginOtpEmail } from "./send-otp";
 type AuthEnv = Pick<
   CloudflareEnv,
   "DB" | "RATE_LIMIT" | "BETTER_AUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"
-> & { BETTER_AUTH_URL?: string };
+> & { BETTER_AUTH_URL?: string; TRUSTED_ORIGINS?: string };
+
+/**
+ * Origins allowed to call the auth API, on top of the app's own base URL.
+ * Set TRUSTED_ORIGINS to a comma-separated list to add preview deployments or
+ * a second custom domain.
+ */
+function trustedOrigins(env?: AuthEnv): string[] {
+  const origins = new Set<string>();
+  if (env?.BETTER_AUTH_URL) origins.add(env.BETTER_AUTH_URL);
+  for (const origin of (env?.TRUSTED_ORIGINS ?? "").split(",")) {
+    const trimmed = origin.trim();
+    if (trimmed) origins.add(trimmed);
+  }
+  return [...origins];
+}
 
 /**
  * Builds the better-auth instance.
@@ -35,6 +50,7 @@ export function createAuth(env?: AuthEnv, baseURL?: string) {
       },
       {
         emailAndPassword: { enabled: false },
+        trustedOrigins: trustedOrigins(env),
         socialProviders: {
           google: {
             clientId: env?.GOOGLE_CLIENT_ID ?? "",
