@@ -94,12 +94,26 @@ pages and components cannot access an unscoped database connection.
 git clone <your-repository-url> book-shelf-manager
 cd book-shelf-manager
 npm ci
-npx wrangler login
+npx wrangler login --device
 ```
 
-The postinstall script generates cloudflare-env.d.ts with Wrangler. The same
-Cloudflare account used by `wrangler login` owns the D1 database, R2 bucket, KV
-namespace, and Worker.
+Wrangler prints a verification URL and one-time code. Open that URL in a
+browser and approve access; device authorization avoids the temporary
+`localhost:8976` OAuth callback, which can fail when the browser and terminal
+run in different environments. The postinstall script generates
+cloudflare-env.d.ts with Wrangler. The same Cloudflare account used by
+Wrangler owns the D1 database, R2 bucket, KV namespace, and Worker.
+
+For CI or a headless machine, use a Cloudflare API token instead:
+
+```bash
+export CLOUDFLARE_ACCOUNT_ID=<your-account-id>
+export CLOUDFLARE_API_TOKEN=<your-api-token>
+npx wrangler whoami
+```
+
+Keep the token in your shell or CI secret store; never commit it or put it in
+`.dev.vars`.
 
 ### 2. Create Cloudflare resources
 
