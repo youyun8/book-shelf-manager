@@ -79,7 +79,27 @@ the repository layer:
 lib/data/ is the only place that binds D1 to repository functions. Application
 pages and components cannot access an unscoped database connection.
 
-## Local setup
+## Local development and production deployment
+
+The production site runs as a single Cloudflare Worker. The Worker serves the
+Next.js application and uses three Cloudflare resources:
+
+- D1 database `book-shelf-manager` for users, sessions, books, and scans.
+- Private R2 bucket `book-photos` for uploaded shelf photos.
+- KV namespace `RATE_LIMIT` for scan-pipeline rate-limit state.
+
+The deployment is intentionally not self-contained: `npm run deploy` publishes
+the Worker, but it does not create Cloudflare resources, apply D1 migrations, or
+create OAuth credentials for you. Complete the one-time setup below before
+sharing the site with users. A normal release after setup is just:
+
+```bash
+npm ci
+npm run lint
+npm run test
+npm run db:migrate:remote   # only when there are new migrations
+npm run deploy
+```
 
 ### Requirements
 
@@ -87,14 +107,17 @@ pages and components cannot access an unscoped database connection.
 - A Cloudflare account for remote D1, R2, KV, and Workers deployment.
 - A Google Cloud project for OAuth credentials.
 - A Gemini API key for image recognition.
+- A Resend account and verified sender domain if production email OTP login is
+  required. Without Resend, OTP codes are only written to Worker logs.
 
-### 1. Install and log in
+### 1. Install dependencies and authenticate with Cloudflare
 
 ```bash
 git clone <your-repository-url> book-shelf-manager
 cd book-shelf-manager
 npm ci
 npx wrangler login --device
+npx wrangler whoami
 ```
 
 Wrangler prints a verification URL and one-time code. Open that URL in a
@@ -104,7 +127,8 @@ run in different environments. The postinstall script generates
 cloudflare-env.d.ts with Wrangler. The same Cloudflare account used by
 Wrangler owns the D1 database, R2 bucket, KV namespace, and Worker.
 
-For CI or a headless machine, use a Cloudflare API token instead:
+For CI or a headless machine, use a Cloudflare API token instead. Set the
+account ID and token in the CI secret store, not in the repository:
 
 ```bash
 export CLOUDFLARE_ACCOUNT_ID=<your-account-id>
@@ -113,9 +137,10 @@ npx wrangler whoami
 ```
 
 Keep the token in your shell or CI secret store; never commit it or put it in
-`.dev.vars`.
+`.dev.vars`. The authenticated account must be the account that owns the
+Worker and all three production bindings.
 
-### 2. Create Cloudflare resources
+### 2. Create and connect Cloudflare resources
 
 ```bash
 npx wrangler d1 create book-shelf-manager
@@ -123,7 +148,17 @@ npx wrangler r2 bucket create book-photos
 npx wrangler kv namespace create RATE_LIMIT
 ```
 
-Copy the returned IDs into `wrangler.jsonc`:
+Run each create command once. If a resource already exists, list the existing
+resources and use its ID instead of creating a duplicate:
+
+```bash
+npx wrangler d1 list
+npx wrangler r2 bucket list
+npx wrangler kv namespace list
+```
+
+Copy the IDs and names returned by the create commands into
+[`wrangler.jsonc`](wrangler.jsonc):
 
 | Command output | `wrangler.jsonc` field        |
 | -------------- | ----------------------------- |
@@ -131,12 +166,15 @@ Copy the returned IDs into `wrangler.jsonc`:
 | KV id          | `kv_namespaces[0].id`         |
 | R2 bucket name | Keep `book-photos` unchanged  |
 
-Do not put `BETTER_AUTH_URL` in `wrangler.jsonc`. Local development reads it
-from `.dev.vars`; production is set once on the deploy command below. This
-prevents a production deployment from accidentally using `localhost` for its
-OAuth callback.
+Replace both `REPLACE_ME_...` values before running a remote migration or
+deploying. Keep the R2 bucket private; the application reads photos through an
+authenticated route rather than exposing the bucket publicly. Do not put
+`BETTER_AUTH_URL` in `wrangler.jsonc`: local development reads it from
+`.dev.vars`, while production is set as a Worker variable during deployment.
+This prevents a production deployment from accidentally using `localhost` for
+its OAuth callback.
 
-### 3. Configure local and production secrets
+### 3. Configure local secrets and variables
 
 For local development:
 
@@ -149,12 +187,22 @@ Fill in these values in `.dev.vars`:
 ```text
 GEMINI_API_KEY=AIza...
 BETTER_AUTH_SECRET=<long-random-secret>
+BETTER_AUTH_URL=http://localhost:8787
 GOOGLE_CLIENT_ID=<oauth-client-id>
 GOOGLE_CLIENT_SECRET=<oauth-client-secret>
 ```
 
-Optional values are `RESEND_API_KEY`, `OTP_FROM_EMAIL`, and
-`TRUSTED_ORIGINS`. Without Resend, OTP codes are written to local logs.
+Generate a local auth secret rather than reusing a production secret:
+
+```bash
+openssl rand -base64 32
+```
+
+Optional local values are `RESEND_API_KEY`, `OTP_FROM_EMAIL`, and
+`TRUSTED_ORIGINS`. Without Resend, OTP codes are written to the local Worker
+logs, which is useful for development but is not a production delivery setup.
+
+### 4. Configure production secrets
 
 For production, create the Worker secrets with Wrangler:
 
@@ -168,42 +216,90 @@ npx wrangler secret put OTP_FROM_EMAIL       # optional
 npx wrangler secret put TRUSTED_ORIGINS      # optional
 ```
 
-Never commit `.dev.vars` or put these values in a `NEXT_PUBLIC_` variable.
+`BETTER_AUTH_URL` is a non-secret Worker variable and is configured in the
+deployment step. Set `TRUSTED_ORIGINS` only when the app must accept another
+hostname, such as a preview URL or a second custom domain; use a
+comma-separated list of origins, for example:
 
-### 4. Apply database migrations
-
-```bash
-# Remote D1 used by the deployed Worker
-npm run db:migrate:remote
+```text
+https://preview.example.com,https://books.example.com
 ```
 
-After changing `db/schema.ts`, generate a migration before applying it:
+If using email OTP in production, configure a verified Resend sender and set
+`OTP_FROM_EMAIL` to that sender, for example
+`Book Shelf Manager <login@example.com>`. Never commit `.dev.vars` or put any
+secret in a `NEXT_PUBLIC_` variable.
+
+### 5. Apply the production database migrations
+
+The remote D1 database is separate from the local D1 database used by
+`wrangler dev`. Apply migrations explicitly before the first production
+deployment:
+
+```bash
+npm run db:migrate:remote
+npx wrangler d1 migrations list book-shelf-manager --remote
+```
+
+When the schema changes, generate and review a migration locally, then apply
+that migration to remote D1 before deploying code that depends on it:
 
 ```bash
 npm run db:generate
+# Review the new file in drizzle/ and run the test suite.
+npm run db:migrate:remote
 ```
 
-### 5. Deploy
+`npm run db:seed` is intended for local test data. Do not run
+`npm run db:seed -- --remote` against a real library unless you deliberately
+want the sample users and books; the seed script removes rows for its fixed
+sample accounts before inserting them.
 
-The deploy script builds the OpenNext Worker and publishes it in one command:
+### 6. Build and deploy the Worker
+
+The first deploy creates the Worker and prints its `workers.dev` URL:
 
 ```bash
-npm run deploy
+npm run cf:build       # optional: build only, useful for catching errors
+npm run deploy         # build and publish the Worker
 ```
 
-The first deployment prints the Worker URL. Set the public URL as the OAuth
-base URL on the first deploy that serves users:
+Set `BETTER_AUTH_URL` to the exact public origin immediately after you know the
+URL, then deploy again. Include the scheme and hostname, but no API path:
 
 ```bash
-npm run deploy -- --var BETTER_AUTH_URL:https://<your-worker-url>
+npm run deploy -- --var BETTER_AUTH_URL:https://book-shelf-manager.<account-subdomain>.workers.dev
 ```
 
-`wrangler.jsonc` has `keep_vars` enabled, so later `npm run deploy` commands
-preserve this dashboard/CLI-managed value. If users visit a custom domain,
-use that exact domain instead of the `workers.dev` URL. If you change domains,
-run the command again with the new URL.
+If you already have a custom domain, use that domain instead of the
+`workers.dev` URL. `wrangler.jsonc` has `keep_vars` enabled, so later deploys
+preserve the Worker variable managed through Wrangler or the Cloudflare
+dashboard. If the public hostname changes, set `BETTER_AUTH_URL` again and
+update the OAuth redirect URI as well.
 
-### 6. Configure Google OAuth
+The deployment command performs these operations:
+
+- Builds the Next.js app with `opennextjs-cloudflare`.
+- Produces `.open-next/worker.js` and `.open-next/assets`.
+- Uploads the Worker and static assets using `wrangler.jsonc`.
+- Connects the Worker to the configured D1, R2, and KV resources.
+
+It does not apply migrations or upload secrets. Migrations and secrets must be
+configured in the earlier steps. A deployment can be inspected with:
+
+```bash
+npx wrangler deployments status
+npx wrangler deployments list
+```
+
+To roll back to a known Worker version, first find its version ID in
+`wrangler deployments list`, then run:
+
+```bash
+npx wrangler rollback <version-id> --name book-shelf-manager --yes
+```
+
+### 7. Configure Google OAuth
 
 In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
 create a Web application OAuth client.
@@ -226,7 +322,49 @@ If you use more than one production hostname, put the additional origins in
 the `TRUSTED_ORIGINS` secret as a comma-separated list. OAuth must start and
 finish on the same hostname so the state cookie is available on the callback.
 
-### 7. Run locally
+After changing an OAuth client or hostname, test a fresh private-browser
+session. Old cookies can hide an incorrect origin or redirect configuration.
+
+### 8. Attach a custom domain (optional)
+
+The default `workers.dev` hostname is enough for a first deployment. For a
+custom hostname, attach the domain to the `book-shelf-manager` Worker through
+Cloudflare’s Worker custom-domain settings or Wrangler, wait for the DNS and
+TLS certificate to become active, and then:
+
+1. Set `BETTER_AUTH_URL` to `https://books.example.com` and redeploy.
+2. Add `https://books.example.com/api/auth/callback/google` to Google’s
+   authorized redirect URIs.
+3. Add `https://books.example.com` to Google’s authorized JavaScript origins.
+4. Remove the old hostname only after sign-in has been tested on the new one.
+
+Do not use a URL with `/api/auth` or another path as `BETTER_AUTH_URL`; it must
+be the origin users see in the browser. If both the old and new hosts must
+remain usable, keep the additional host in `TRUSTED_ORIGINS`.
+
+### 9. Verify the deployed site
+
+Use the URL configured in `BETTER_AUTH_URL` for the smoke test:
+
+```bash
+curl -I https://<public-hostname>
+```
+
+Then verify the application in a browser:
+
+- The landing page loads over HTTPS.
+- Google OAuth returns to the same hostname and creates a session.
+- Email OTP delivers a code if Resend is configured.
+- A JPEG, PNG, WebP, or HEIC shelf photo up to 10 MB can be uploaded.
+- The scan progresses from upload to completion and detected books appear.
+- A book can be edited and the CSV export downloads successfully.
+- A second account cannot see the first account’s books or scan photos.
+
+If a scan fails, check the Worker logs and confirm `GEMINI_API_KEY` is present
+and its provider quota is available. Google Books metadata is fetched from a
+public API and does not require another secret.
+
+### 10. Run locally
 
 ```bash
 # Next.js development server without Cloudflare bindings
@@ -244,13 +382,17 @@ npm run db:seed
 ```
 
 For automatic deploys from GitHub, connect the repository in Cloudflare
-Workers Builds and use:
+Workers Builds, select the production branch, and use:
 
 - Build command: `npm run cf:build`
 - Deploy command: `npx opennextjs-cloudflare deploy`
 
 Configure the same runtime secrets and `BETTER_AUTH_URL` in the Worker’s
-Variables and Secrets settings. The local `npm run deploy` flow remains the
+Variables and Secrets settings. The build must have access to the repository,
+but runtime secrets belong in Cloudflare and should not be committed to GitHub.
+Because the build configuration does not run database migrations, add
+`npm run db:migrate:remote` as a separate, controlled release step when a
+migration is part of the change. The local `npm run deploy` flow remains the
 reference path for first-time setup and troubleshooting.
 
 ## Commands
