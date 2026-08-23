@@ -17,11 +17,11 @@
   // public internet instead of looping back inside the worker.
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "d1_databases": [
     {
@@ -29,25 +29,25 @@
       "database_name": "book-shelf-manager",
       // wrangler d1 create book-shelf-manager  ->  paste database_id here
       "database_id": "REPLACE_ME_D1_DATABASE_ID",
-      "migrations_dir": "drizzle"
-    }
+      "migrations_dir": "drizzle",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "PHOTOS",
       // wrangler r2 bucket create book-photos   (keep the bucket private)
-      "bucket_name": "book-photos"
-    }
+      "bucket_name": "book-photos",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "RATE_LIMIT",
       // wrangler kv namespace create RATE_LIMIT  ->  paste id here
-      "id": "REPLACE_ME_KV_NAMESPACE_ID"
-    }
+      "id": "REPLACE_ME_KV_NAMESPACE_ID",
+    },
   ],
   "vars": {
     // Public, non-secret configuration. Secrets go through `wrangler secret put`.
-    "BETTER_AUTH_URL": "http://localhost:8787"
-  }
+    "BETTER_AUTH_URL": "http://localhost:8787",
+  },
 }

@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint && tsc --noEmit && npm run check:isolation",
+    "lint": "eslint && tsc --noEmit && npm run check:isolation && npm run check:auth-schema",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
@@ -21,7 +21,8 @@
     "cf:dev": "opennextjs-cloudflare build && wrangler dev",
     "cf:preview": "opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare deploy",
-    "postinstall": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "postinstall": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "check:auth-schema": "tsx scripts/check-auth-schema.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.1",
