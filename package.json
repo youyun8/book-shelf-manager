@@ -20,7 +20,7 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:dev": "opennextjs-cloudflare build && wrangler dev",
     "cf:preview": "opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare deploy",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "postinstall": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "check:auth-schema": "tsx scripts/check-auth-schema.ts",
     "test:e2e": "playwright test"
