@@ -33,7 +33,13 @@ const eslintConfig = [
       ],
       "@typescript-eslint/consistent-type-imports": [
         "error",
-        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+          // `typeof import("...")` in a type position is the only way to type
+          // vitest's importOriginal helper.
+          disallowTypeAnnotations: false,
+        },
       ],
     },
   },
