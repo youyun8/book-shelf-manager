@@ -30,6 +30,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -312,12 +318,26 @@ export function LibraryView({ initialBooks }: { initialBooks: Book[] }) {
           </Button>
         </div>
 
-        <Button asChild variant="outline" size="sm" className="ml-auto">
-          <a href={exportHref} download>
-            <Download aria-hidden />
-            匯出 CSV
-          </a>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="ml-auto">
+              <Download aria-hidden />
+              匯出 CSV
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <a href="/api/export" download data-testid="export-all">
+                匯出全部書籍
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild disabled={!filtering}>
+              <a href={exportHref} download data-testid="export-filtered">
+                只匯出目前篩選結果（{visible.length} 本）
+              </a>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {selectedIds.size > 0 ? (
