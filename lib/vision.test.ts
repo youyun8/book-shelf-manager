@@ -4,11 +4,14 @@ import { VisionError, recognizeBooks } from "./vision";
 
 const IMAGE = new TextEncoder().encode("fake-jpeg-bytes").buffer as ArrayBuffer;
 
-function toolUseResponse(books: unknown, stopReason = "tool_use") {
+function geminiResponse(books: unknown, finishReason = "STOP") {
   return JSON.stringify({
-    id: "msg_1",
-    stop_reason: stopReason,
-    content: [{ type: "tool_use", id: "toolu_1", name: "record_books", input: { books } }],
+    candidates: [
+      {
+        finishReason,
+        content: { parts: [{ text: JSON.stringify({ books }) }] },
+      },
+    ],
   });
 }
 
@@ -33,41 +36,39 @@ function recognize(fetchImpl: typeof fetch, overrides = {}) {
 }
 
 describe("request shape", () => {
-  it("forces the model to answer through the tool and sends the image inline", async () => {
-    const fetchImpl = vi.fn(async () => ok(toolUseResponse([])));
+  it("sends the image inline and requests structured JSON output", async () => {
+    const fetchImpl = vi.fn(async () => ok(geminiResponse([])));
     await recognize(fetchImpl as unknown as typeof fetch);
 
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect(url).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+    );
 
     const headers = init.headers as Record<string, string>;
-    expect(headers["x-api-key"]).toBe("test-key");
-    expect(headers["anthropic-version"]).toBe("2023-06-01");
+    expect(headers["x-goog-api-key"]).toBe("test-key");
 
     const body = JSON.parse(init.body as string);
-    expect(body.model).toBe("claude-sonnet-4-5");
-    expect(body.tool_choice).toEqual({ type: "tool", name: "record_books" });
-    expect(body.tools[0].name).toBe("record_books");
+    expect(body.generationConfig.responseMimeType).toBe("application/json");
+    expect(body.generationConfig.responseSchema.properties.books.type).toBe("array");
+    expect(body.systemInstruction.parts[0].text).toContain("MANY books");
 
-    const [image, text] = body.messages[0].content;
-    expect(image.type).toBe("image");
-    expect(image.source.type).toBe("base64");
-    expect(image.source.media_type).toBe("image/jpeg");
-    expect(typeof image.source.data).toBe("string");
-    expect(text.type).toBe("text");
+    const [image, text] = body.contents[0].parts;
+    expect(image.inlineData.mimeType).toBe("image/jpeg");
+    expect(typeof image.inlineData.data).toBe("string");
+    expect(text.text).toBe("Identify every book in this photo.");
   });
 
-  it("tells the model a photo may hold many books and not to invent fields", async () => {
-    const fetchImpl = vi.fn(async () => ok(toolUseResponse([])));
+  it("tells the model not to invent fields", async () => {
+    const fetchImpl = vi.fn(async () => ok(geminiResponse([])));
     await recognize(fetchImpl as unknown as typeof fetch);
 
     const body = JSON.parse(
       (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
     );
-    expect(body.system).toContain("MANY books");
-    expect(body.system).toContain("spines");
-    expect(body.system).toContain("null");
-    expect(body.system).toContain("never invent");
+    expect(body.systemInstruction.parts[0].text).toContain("spines");
+    expect(body.systemInstruction.parts[0].text).toContain("null");
+    expect(body.systemInstruction.parts[0].text).toContain("never invent");
   });
 });
 
@@ -75,7 +76,7 @@ describe("parsing", () => {
   it("returns every recognised book", async () => {
     const fetchImpl = vi.fn(async () =>
       ok(
-        toolUseResponse([
+        geminiResponse([
           {
             title: "深度學習",
             authors: ["Ian Goodfellow", "Yoshua Bengio"],
@@ -101,7 +102,6 @@ describe("parsing", () => {
       title: "深度學習",
       authors: ["Ian Goodfellow", "Yoshua Bengio"],
       publisher: "碁峰",
-      // Punctuation is stripped so the value can be matched against a catalogue.
       isbn: "9789864760001",
       confidence: 0.92,
     });
@@ -112,7 +112,7 @@ describe("parsing", () => {
   it("drops entries with no readable title rather than inventing one", async () => {
     const fetchImpl = vi.fn(async () =>
       ok(
-        toolUseResponse([
+        geminiResponse([
           { title: "", authors: [], publisher: null, isbn: null, confidence: 0.9 },
           { title: "   ", authors: [], publisher: null, isbn: null, confidence: 0.9 },
           { title: "真書", authors: [], publisher: null, isbn: null, confidence: 0.9 },
@@ -127,7 +127,7 @@ describe("parsing", () => {
   it("clamps a confidence outside 0-1 and defaults a missing one", async () => {
     const fetchImpl = vi.fn(async () =>
       ok(
-        toolUseResponse([
+        geminiResponse([
           { title: "A", authors: [], publisher: null, isbn: null, confidence: 5 },
           { title: "B", authors: [], publisher: null, isbn: null, confidence: -2 },
           { title: "C", authors: [], publisher: null, isbn: null },
@@ -140,7 +140,7 @@ describe("parsing", () => {
   });
 
   it("accepts an empty shelf", async () => {
-    const fetchImpl = vi.fn(async () => ok(toolUseResponse([])));
+    const fetchImpl = vi.fn(async () => ok(geminiResponse([])));
     const { books } = await recognize(fetchImpl as unknown as typeof fetch);
     expect(books).toEqual([]);
   });
@@ -178,14 +178,12 @@ describe("error paths", () => {
     expect(error).toBeInstanceOf(VisionError);
     expect(error.code).toBe("invalid_response");
     expect(error.rawResult).toBe("<html>gateway error</html>");
-    // Malformed JSON on a 200 will not fix itself, so it is not retried.
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the raw body when the model answers without calling the tool", async () => {
+  it("keeps the raw body when Gemini answers without structured data", async () => {
     const raw = JSON.stringify({
-      stop_reason: "end_turn",
-      content: [{ type: "text", text: "I cannot see any books." }],
+      candidates: [{ content: { parts: [{ text: "I cannot see any books." }] } }],
     });
     const fetchImpl = vi.fn(async () => ok(raw));
 
@@ -194,9 +192,9 @@ describe("error paths", () => {
     expect(error.rawResult).toBe(raw);
   });
 
-  it("treats a refusal as an invalid response", async () => {
+  it("treats a safety block as an invalid response", async () => {
     const fetchImpl = vi.fn(async () =>
-      ok(JSON.stringify({ stop_reason: "refusal", content: [] })),
+      ok(JSON.stringify({ promptFeedback: { blockReason: "SAFETY" }, candidates: [] })),
     );
     await expect(recognize(fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({
       code: "invalid_response",
@@ -209,7 +207,6 @@ describe("error paths", () => {
     await expect(recognize(fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({
       code: "api_error",
     });
-    // The first attempt plus two retries.
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
@@ -217,13 +214,7 @@ describe("error paths", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
-      .mockResolvedValueOnce(
-        ok(
-          toolUseResponse([
-            { title: "撐過去了", authors: [], publisher: null, isbn: null, confidence: 0.8 },
-          ]),
-        ),
-      );
+      .mockResolvedValueOnce(ok(geminiResponse([{ title: "撐過去了" }])));
 
     const { books } = await recognize(fetchImpl as unknown as typeof fetch);
     expect(books).toHaveLength(1);
@@ -243,7 +234,7 @@ describe("error paths", () => {
     const fetchImpl = vi
       .fn()
       .mockRejectedValueOnce(new Error("connection reset"))
-      .mockResolvedValueOnce(ok(toolUseResponse([])));
+      .mockResolvedValueOnce(ok(geminiResponse([])));
 
     await expect(recognize(fetchImpl as unknown as typeof fetch)).resolves.toMatchObject({
       books: [],

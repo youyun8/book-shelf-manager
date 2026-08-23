@@ -7,6 +7,9 @@ import { processScan } from "@/lib/scan-pipeline";
 
 /** Recognition is expensive, so cap how often one account can start it. */
 const SCANS_PER_MINUTE = 10;
+/** Keep free-tier provider usage bounded across all accounts. */
+const SCANS_PER_DAY = 100;
+const DAY_SECONDS = 24 * 60 * 60;
 
 /**
  * Starts recognition for an uploaded photo.
@@ -33,6 +36,14 @@ export async function POST(request: Request): Promise<Response> {
 
   const { env, ctx } = await getCloudflareContext({ async: true });
 
+  // Scoped to the caller, so another user's scan id simply is not found.
+  const scan = await getScan(user.id, scanId);
+  if (!scan) return new Response(null, { status: 404 });
+
+  if (scan.status === "processing") {
+    return Response.json({ scanId, status: scan.status }, { status: 202 });
+  }
+
   const limit = await consumeRateLimit({
     kv: env.RATE_LIMIT,
     identifier: `scan:${user.id}`,
@@ -45,16 +56,24 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Scoped to the caller, so another user's scan id simply is not found.
-  const scan = await getScan(user.id, scanId);
-  if (!scan) return new Response(null, { status: 404 });
-
-  if (scan.status === "processing") {
-    return Response.json({ scanId, status: scan.status }, { status: 202 });
+  const dailyLimit = await consumeRateLimit({
+    kv: env.RATE_LIMIT,
+    identifier: "scan:global",
+    limit: SCANS_PER_DAY,
+    windowSeconds: DAY_SECONDS,
+  });
+  if (!dailyLimit.allowed) {
+    return Response.json(
+      { error: `今日的免費辨識額度已用完，請在 ${dailyLimit.retryAfterSeconds} 秒後再試。` },
+      {
+        status: 429,
+        headers: { "retry-after": String(dailyLimit.retryAfterSeconds) },
+      },
+    );
   }
 
   ctx.waitUntil(
-    processScan({ userId: user.id, scanId, apiKey: env.ANTHROPIC_API_KEY }).then(() => undefined),
+    processScan({ userId: user.id, scanId, apiKey: env.GEMINI_API_KEY }).then(() => undefined),
   );
 
   return Response.json({ scanId, status: "processing" }, { status: 202 });

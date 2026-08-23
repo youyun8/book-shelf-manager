@@ -242,28 +242,34 @@ attacker enumerating ids wants to know.
 
 ## 5. Recognition
 
-### 5.1 Raw `fetch`, not the Anthropic SDK
+### 5.1 Raw `fetch`, not the Gemini SDK
 
-Required by the brief, and independently correct here: the worker bundle carries
-no SDK dependency, and the request is a single POST that is easy to read and to
-test with an injected `fetchImpl`.
+The worker bundle carries no SDK dependency, and the request is a single POST
+that is easy to read and to test with an injected `fetchImpl`.
 
-### 5.2 `claude-sonnet-4-5`
+### 5.2 `gemini-2.5-flash-lite`
 
-Fixed by the brief. (Current Anthropic guidance would default to a newer model;
-the brief names this one explicitly, so it is used as specified. Changing it is
-a one-line edit in `lib/vision.ts`.)
+The free standard tier makes this a practical choice for a personal shelf, and
+the model accepts image input. The provider's free tier may use submitted
+content to improve products, so private deployments should review Google's
+terms or use a different provider.
 
-### 5.3 Forced tool use, not "reply in JSON"
+### 5.3 Structured output, not prose JSON
 
-`tool_choice: {type: "tool", name: "record_books"}` makes the reply a structured
-object validated against a schema. Asking for JSON in prose means parsing
-whatever comes back, including markdown fences and preamble. `strict: true` is
-deliberately _not_ sent, since it is not documented as supported on this model
-tier; the parser validates every field itself instead, which it would have to do
-regardless.
+Gemini's `responseMimeType: "application/json"` and `responseSchema` ask for a
+machine-readable book list. Structured output guarantees JSON syntax, not that
+the values are correct, so `lib/vision.ts` still validates every field and
+drops entries without a readable title.
 
-### 5.4 Asynchronous by construction
+### 5.4 Provider usage is bounded globally
+
+The existing per-user ten-per-minute limit remains, and a shared KV fixed
+window caps the application at 100 recognition attempts per day. KV has no
+atomic increment, so this is an abuse and cost guard rather than an exact
+billing quota. A Durable Object would be the next step if exact accounting
+became important.
+
+### 5.5 Asynchronous by construction
 
 `POST /api/scan` marks the scan and returns `202` immediately, with the work
 running under `ctx.waitUntil`; the client polls `GET /api/scan/[id]`. One
@@ -275,14 +281,14 @@ Cloudflare Queues would be the next step if a scan ever needed to survive a
 worker eviction or be retried without the client asking. `waitUntil` is enough
 here and needs no extra resource.
 
-### 5.5 What "needs review" means
+### 5.6 What "needs review" means
 
 A book is flagged when the model's self-assessed confidence is below 0.6, **or**
 when Google Books returned nothing. The second case matters as much as the
 first: a confident reading that no catalogue can corroborate is exactly the one
 worth a human glance.
 
-### 5.6 Google Books wins on bibliographic fields, but only where it has data
+### 5.7 Google Books wins on bibliographic fields, but only where it has data
 
 A catalogue entry beats a guess made from a photographed spine, so the lookup
 overrides title, authors and publisher — but a sparse record never erases what
@@ -292,26 +298,26 @@ Google rejects unauthenticated requests from a datacenter.
 A failed lookup returns `null` rather than throwing, so a Google outage
 degrades enrichment instead of failing the whole scan.
 
-### 5.7 Retry policy
+### 5.8 Retry policy
 
 Two retries with exponential backoff on 429, 5xx and network errors. A 4xx is
 not retried — it will not change. Malformed JSON in a 200 is not retried either,
 and is stored on the scan verbatim so a bad response can be inspected after the
 fact.
 
-### 5.8 Client-side compression, and what happens to HEIC
+### 5.9 Client-side compression, and what happens to HEIC
 
 Photos are resized to 2048px on the longest side and re-encoded as JPEG at
 quality 0.85 before upload. This cuts upload time and keeps the payload well
-inside the Messages API's 5MB per-image limit.
+inside Gemini's 5MB per-image application limit.
 
-HEIC is accepted by the upload endpoint (the brief asks for it) but the
-Messages API does not support it. In practice the browser converts it to JPEG
+HEIC is accepted by the upload endpoint (the brief asks for it) but Gemini does
+not support it. In practice the browser converts it to JPEG
 during compression. When a browser cannot decode HEIC at all, `createImageBitmap`
 rejects and the user gets "你的瀏覽器無法讀取這張圖片，請改用 JPEG 或 PNG" rather
 than a confusing server-side failure later.
 
-### 5.9 Books are written before the user confirms them
+### 5.10 Books are written before the user confirms them
 
 The review screen edits and deletes existing rows. Writing them first is what
 lets the worker finish and the browser poll for a result; holding them in memory
@@ -403,7 +409,7 @@ CommonJS otherwise and `@cloudflare/vitest-pool-workers` is ESM-only.
 
 ### 8.2 What is mocked, and what is not
 
-Only the two outbound HTTP services (Anthropic, Google Books) are faked, through
+Only the two outbound HTTP services (Gemini, Google Books) are faked, through
 an injected `fetchImpl`. D1, R2 and KV are the real local implementations that
 miniflare provides. `lib/scan-pipeline.test.ts` mocks `getDb` and `getPhoto`
 only because they resolve their binding through the OpenNext request context,
