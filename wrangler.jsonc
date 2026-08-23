@@ -1,0 +1,53 @@
+/**
+ * Cloudflare Workers configuration for book-shelf-manager.
+ *
+ * The worker entrypoint is produced by `@opennextjs/cloudflare`, so run
+ * `npm run cf:build` before `npm run cf:dev` / `npm run deploy`.
+ *
+ * Placeholder ids marked with "REPLACE_ME" must be filled in with the values
+ * printed by the `wrangler ... create` commands documented in README.md.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "book-shelf-manager",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-08-21",
+  // nodejs_compat is required by @opennextjs/cloudflare (Next.js server runtime).
+  // global_fetch_strictly_public makes fetch() to our own hostname go through the
+  // public internet instead of looping back inside the worker.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "book-shelf-manager",
+      // wrangler d1 create book-shelf-manager  ->  paste database_id here
+      "database_id": "REPLACE_ME_D1_DATABASE_ID",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      // wrangler r2 bucket create book-photos   (keep the bucket private)
+      "bucket_name": "book-photos"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "RATE_LIMIT",
+      // wrangler kv namespace create RATE_LIMIT  ->  paste id here
+      "id": "REPLACE_ME_KV_NAMESPACE_ID"
+    }
+  ],
+  "vars": {
+    // Public, non-secret configuration. Secrets go through `wrangler secret put`.
+    "BETTER_AUTH_URL": "http://localhost:8787"
+  }
+}
