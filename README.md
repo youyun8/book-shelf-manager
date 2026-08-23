@@ -88,7 +88,7 @@ pages and components cannot access an unscoped database connection.
 - A Google Cloud project for OAuth credentials.
 - A Gemini API key for image recognition.
 
-### 1. Install
+### 1. Install and log in
 
 ```bash
 git clone <your-repository-url> book-shelf-manager
@@ -97,7 +97,9 @@ npm ci
 npx wrangler login
 ```
 
-The postinstall script generates cloudflare-env.d.ts with Wrangler.
+The postinstall script generates cloudflare-env.d.ts with Wrangler. The same
+Cloudflare account used by `wrangler login` owns the D1 database, R2 bucket, KV
+namespace, and Worker.
 
 ### 2. Create Cloudflare resources
 
@@ -107,19 +109,87 @@ npx wrangler r2 bucket create book-photos
 npx wrangler kv namespace create RATE_LIMIT
 ```
 
-Copy the returned IDs into wrangler.jsonc:
+Copy the returned IDs into `wrangler.jsonc`:
 
-| Command output | wrangler.jsonc field                          |
-| -------------- | --------------------------------------------- |
-| D1 database_id | d1_databases[0].database_id                   |
-| KV id          | kv_namespaces[0].id                           |
-| R2 bucket name | Keep r2_buckets[0].bucket_name as book-photos |
+| Command output | `wrangler.jsonc` field        |
+| -------------- | ----------------------------- |
+| D1 database_id | `d1_databases[0].database_id` |
+| KV id          | `kv_namespaces[0].id`         |
+| R2 bucket name | Keep `book-photos` unchanged  |
 
-Set vars.BETTER_AUTH_URL to the URL users will visit. For local development it
-should be http://localhost:8787. For production it should be the deployed
-Worker URL.
+Do not put `BETTER_AUTH_URL` in `wrangler.jsonc`. Local development reads it
+from `.dev.vars`; production is set once on the deploy command below. This
+prevents a production deployment from accidentally using `localhost` for its
+OAuth callback.
 
-### 3. Configure Google OAuth
+### 3. Configure local and production secrets
+
+For local development:
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+Fill in these values in `.dev.vars`:
+
+```text
+GEMINI_API_KEY=AIza...
+BETTER_AUTH_SECRET=<long-random-secret>
+GOOGLE_CLIENT_ID=<oauth-client-id>
+GOOGLE_CLIENT_SECRET=<oauth-client-secret>
+```
+
+Optional values are `RESEND_API_KEY`, `OTP_FROM_EMAIL`, and
+`TRUSTED_ORIGINS`. Without Resend, OTP codes are written to local logs.
+
+For production, create the Worker secrets with Wrangler:
+
+```bash
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put BETTER_AUTH_SECRET
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put RESEND_API_KEY       # optional
+npx wrangler secret put OTP_FROM_EMAIL       # optional
+npx wrangler secret put TRUSTED_ORIGINS      # optional
+```
+
+Never commit `.dev.vars` or put these values in a `NEXT_PUBLIC_` variable.
+
+### 4. Apply database migrations
+
+```bash
+# Remote D1 used by the deployed Worker
+npm run db:migrate:remote
+```
+
+After changing `db/schema.ts`, generate a migration before applying it:
+
+```bash
+npm run db:generate
+```
+
+### 5. Deploy
+
+The deploy script builds the OpenNext Worker and publishes it in one command:
+
+```bash
+npm run deploy
+```
+
+The first deployment prints the Worker URL. Set the public URL as the OAuth
+base URL on the first deploy that serves users:
+
+```bash
+npm run deploy -- --var BETTER_AUTH_URL:https://<your-worker-url>
+```
+
+`wrangler.jsonc` has `keep_vars` enabled, so later `npm run deploy` commands
+preserve this dashboard/CLI-managed value. If users visit a custom domain,
+use that exact domain instead of the `workers.dev` URL. If you change domains,
+run the command again with the new URL.
+
+### 6. Configure Google OAuth
 
 In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
 create a Web application OAuth client.
@@ -139,59 +209,10 @@ https://<your-worker-url>
 ```
 
 If you use more than one production hostname, put the additional origins in
-the TRUSTED_ORIGINS secret as a comma-separated list.
+the `TRUSTED_ORIGINS` secret as a comma-separated list. OAuth must start and
+finish on the same hostname so the state cookie is available on the callback.
 
-### 4. Configure secrets
-
-For local development:
-
-```bash
-cp .dev.vars.example .dev.vars
-```
-
-Fill in these values in .dev.vars:
-
-```text
-GEMINI_API_KEY=AIza...
-BETTER_AUTH_SECRET=<long-random-secret>
-GOOGLE_CLIENT_ID=<oauth-client-id>
-GOOGLE_CLIENT_SECRET=<oauth-client-secret>
-```
-
-Optional values are RESEND_API_KEY, OTP_FROM_EMAIL, and TRUSTED_ORIGINS.
-Without Resend, OTP codes are written to local logs.
-
-For production, create the Worker secrets with Wrangler:
-
-```bash
-npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put BETTER_AUTH_SECRET
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put RESEND_API_KEY       # optional
-npx wrangler secret put OTP_FROM_EMAIL       # optional
-npx wrangler secret put TRUSTED_ORIGINS      # optional
-```
-
-Never commit .dev.vars or put these values in a NEXT_PUBLIC_ variable.
-
-### 5. Apply database migrations
-
-```bash
-# Local D1
-npm run db:migrate:local
-
-# Remote D1
-npm run db:migrate:remote
-```
-
-After changing db/schema.ts, generate a migration before applying it:
-
-```bash
-npm run db:generate
-```
-
-### 6. Run locally
+### 7. Run locally
 
 ```bash
 # Next.js development server without Cloudflare bindings
@@ -208,75 +229,15 @@ users with twenty books each:
 npm run db:seed
 ```
 
-## GitHub deployment
+For automatic deploys from GitHub, connect the repository in Cloudflare
+Workers Builds and use:
 
-There are two supported ways to deploy from GitHub.
+- Build command: `npm run cf:build`
+- Deploy command: `npx opennextjs-cloudflare deploy`
 
-### Option A: Cloudflare Workers Builds
-
-This is the simplest option and is managed by Cloudflare:
-
-1. Push this repository to GitHub.
-2. In the Cloudflare dashboard, open Workers & Pages.
-3. Select Create application and Import a repository.
-4. Choose the GitHub repository and set the root directory to the repository
-   root.
-5. Use npm run cf:build as the build command.
-6. Use npx wrangler deploy as the deploy command.
-7. Configure runtime variables and secrets in the Worker's Settings >
-   Variables and Secrets page.
-
-See the [Cloudflare Workers Builds documentation](https://developers.cloudflare.com/workers/ci-cd/builds/)
-for the current dashboard flow. The Worker name must match the name in
-wrangler.jsonc.
-
-### Option B: GitHub Actions
-
-Create a repository Actions secret named CLOUDFLARE_API_TOKEN and another named
-CLOUDFLARE_ACCOUNT_ID. The API token should have the permissions needed to
-deploy Workers and update the D1, R2, and KV resources used by this project.
-
-GitHub encrypts Actions secrets and makes them available only to workflows. See
-the [GitHub Actions secrets documentation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets).
-
-Add .github/workflows/deploy.yml:
-
-```yaml
-name: Deploy Worker
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-      - run: npm run cf:build
-      - run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-```
-
-Provision the runtime Worker secrets once with Wrangler or in the Cloudflare
-dashboard. Do not pass GEMINI_API_KEY, OAuth credentials, or
-BETTER_AUTH_SECRET through the build command; they are runtime secrets, not
-build credentials.
-
-After the first deployment, update the production BETTER_AUTH_URL and add the
-production OAuth redirect URI in Google Cloud Console.
+Configure the same runtime secrets and `BETTER_AUTH_URL` in the Worker’s
+Variables and Secrets settings. The local `npm run deploy` flow remains the
+reference path for first-time setup and troubleshooting.
 
 ## Commands
 
