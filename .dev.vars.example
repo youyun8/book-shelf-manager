@@ -1,0 +1,15 @@
+# Copy to `.dev.vars` for local development (`.dev.vars` is git-ignored).
+# In production these are set with `wrangler secret put <NAME>`.
+
+# Anthropic Messages API key used by lib/vision.ts for book recognition.
+ANTHROPIC_API_KEY="sk-ant-..."
+
+# Random 32+ byte string. Generate with: openssl rand -base64 32
+BETTER_AUTH_SECRET="replace-with-a-long-random-string"
+
+# Public base URL of the app. Must match the OAuth redirect URI host.
+BETTER_AUTH_URL="http://localhost:8787"
+
+# Google OAuth client (Google Cloud Console -> APIs & Services -> Credentials)
+GOOGLE_CLIENT_ID="....apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="GOCSPX-..."
