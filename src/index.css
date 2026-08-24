@@ -1,0 +1,110 @@
+@import 'tailwindcss';
+
+/* Light palette. Dark values are swapped below; every token is defined here
+   first so a colour never exists only inside the media query. */
+:root {
+  --app-bg: oklch(98.2% 0.003 265);
+  --app-surface: oklch(100% 0 0);
+  --app-surface-muted: oklch(96.6% 0.004 265);
+  --app-border: oklch(91.5% 0.006 265);
+  --app-border-strong: oklch(85% 0.008 265);
+  --app-fg: oklch(24% 0.02 265);
+  --app-fg-muted: oklch(50% 0.015 265);
+  --app-fg-subtle: oklch(62% 0.012 265);
+  --app-accent: oklch(52% 0.19 275);
+  --app-accent-hover: oklch(46% 0.19 275);
+  --app-accent-fg: oklch(100% 0 0);
+  --app-accent-soft: oklch(95.5% 0.03 275);
+  --app-shadow: 0 1px 2px oklch(24% 0.02 265 / 0.06), 0 8px 24px oklch(24% 0.02 265 / 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-bg: oklch(19% 0.012 265);
+    --app-surface: oklch(23% 0.014 265);
+    --app-surface-muted: oklch(26.5% 0.015 265);
+    --app-border: oklch(31% 0.016 265);
+    --app-border-strong: oklch(38% 0.018 265);
+    --app-fg: oklch(95% 0.005 265);
+    --app-fg-muted: oklch(75% 0.012 265);
+    --app-fg-subtle: oklch(63% 0.014 265);
+    --app-accent: oklch(70% 0.15 275);
+    --app-accent-hover: oklch(76% 0.15 275);
+    --app-accent-fg: oklch(19% 0.03 275);
+    --app-accent-soft: oklch(30% 0.05 275);
+    --app-shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 8px 24px oklch(0% 0 0 / 0.25);
+  }
+}
+
+@theme inline {
+  --font-sans:
+    'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang TC',
+    'Microsoft JhengHei', sans-serif;
+  --color-bg: var(--app-bg);
+  --color-surface: var(--app-surface);
+  --color-surface-muted: var(--app-surface-muted);
+  --color-line: var(--app-border);
+  --color-line-strong: var(--app-border-strong);
+  --color-fg: var(--app-fg);
+  --color-fg-muted: var(--app-fg-muted);
+  --color-fg-subtle: var(--app-fg-subtle);
+  --color-accent: var(--app-accent);
+  --color-accent-hover: var(--app-accent-hover);
+  --color-accent-fg: var(--app-accent-fg);
+  --color-accent-soft: var(--app-accent-soft);
+  --shadow-card: var(--app-shadow);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--app-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom utilities must be declared with `@utility` so `@apply` can use them. */
+@utility focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  &:focus-visible {
+    outline-color: var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply focus-ring inline-flex items-center justify-center gap-1.5 rounded-lg border border-line
+      bg-surface px-3 py-2 text-sm font-medium text-fg transition
+      hover:border-line-strong hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply border-transparent bg-accent text-accent-fg hover:border-transparent hover:bg-accent-hover;
+  }
+
+  .field {
+    @apply focus-ring w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm
+      text-fg placeholder:text-fg-subtle;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs
+      font-medium text-accent;
+  }
+}
+
+/* The scrollable filter column and dialog body keep a slim scrollbar. */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-border-strong) transparent;
+}
+
+dialog::backdrop {
+  background: oklch(20% 0.02 265 / 0.45);
+  backdrop-filter: blur(2px);
+}
