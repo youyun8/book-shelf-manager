@@ -1,0 +1,99 @@
+import type { SortKey, ViewMode } from '../types';
+import { cn } from '../lib/cn';
+import { IconFilter, IconGrid, IconList } from './icons';
+
+interface ResultToolbarProps {
+  shown: number;
+  total: number;
+  sort: SortKey;
+  view: ViewMode;
+  activeFilterCount: number;
+  onSortChange: (sort: SortKey) => void;
+  onViewChange: (view: ViewMode) => void;
+  onOpenFilters: () => void;
+}
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'default', label: '檔案順序' },
+  { value: 'title', label: '書名' },
+  { value: 'publisher', label: '出版社' },
+  { value: 'priceAsc', label: '價格：低到高' },
+  { value: 'priceDesc', label: '價格：高到低' },
+];
+
+export function ResultToolbar({
+  shown,
+  total,
+  sort,
+  view,
+  activeFilterCount,
+  onSortChange,
+  onViewChange,
+  onOpenFilters,
+}: ResultToolbarProps) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <button type="button" className="btn lg:hidden" onClick={onOpenFilters}>
+          <IconFilter className="h-4 w-4" />
+          篩選
+          {activeFilterCount > 0 && (
+            <span className="ml-0.5 rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+        <p className="text-sm text-fg-muted">
+          共 <span className="font-semibold text-fg tabular-nums">{shown}</span> 本
+          {shown !== total && <span className="text-fg-subtle">（全部 {total} 本）</span>}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
+          排序
+          <select
+            value={sort}
+            onChange={(event) => onSortChange(event.target.value as SortKey)}
+            className="field w-auto py-1.5 text-xs"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div
+          className="flex items-center rounded-lg border border-line bg-surface p-0.5"
+          role="group"
+          aria-label="檢視方式"
+        >
+          {(
+            [
+              { value: 'grid' as const, label: '卡片檢視', Icon: IconGrid },
+              { value: 'table' as const, label: '表格檢視', Icon: IconList },
+            ] satisfies { value: ViewMode; label: string; Icon: typeof IconGrid }[]
+          ).map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={label}
+              aria-pressed={view === value}
+              onClick={() => onViewChange(value)}
+              className={cn(
+                'focus-ring rounded-md p-1.5 transition',
+                view === value
+                  ? 'bg-accent text-accent-fg'
+                  : 'text-fg-subtle hover:bg-surface-muted hover:text-fg',
+              )}
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
