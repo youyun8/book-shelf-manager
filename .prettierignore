@@ -1,6 +1,4 @@
-.next
-.open-next
-.wrangler
+dist
 node_modules
-drizzle
 package-lock.json
+public/data
