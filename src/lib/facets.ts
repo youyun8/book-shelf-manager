@@ -1,0 +1,56 @@
+import type { Book, FacetKey, FacetOption, Filters } from '../types';
+import { FACET_KEYS } from '../types';
+import { applyFilters, facetValues, compareText } from './filter';
+
+/** Leading number of an age label, so `0-4 歲` sorts before `4-10 歲`. */
+export function ageSortKey(label: string): number {
+  const match = label.match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Builds the checkbox options for one facet. Counts are computed against the
+ * books that pass every *other* filter, so a count tells you how many books you
+ * would see after ticking that box. Selected values are always listed, even at
+ * zero, so a selection never disappears from the panel.
+ */
+export function buildFacet(books: readonly Book[], filters: Filters, key: FacetKey): FacetOption[] {
+  const scope = applyFilters(books, filters, key);
+  const counts = new Map<string, number>();
+
+  for (const book of scope) {
+    for (const value of facetValues(book, key)) {
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+  }
+  for (const book of books) {
+    for (const value of facetValues(book, key)) {
+      if (!counts.has(value)) counts.set(value, 0);
+    }
+  }
+
+  const selected = new Set(filters.facets[key]);
+  const options = [...counts.entries()].map(([value, count]) => ({
+    value,
+    count,
+    selected: selected.has(value),
+  }));
+
+  if (key === 'ageRange') {
+    options.sort(
+      (a, b) => ageSortKey(a.value) - ageSortKey(b.value) || compareText(a.value, b.value),
+    );
+  } else {
+    options.sort((a, b) => b.count - a.count || compareText(a.value, b.value));
+  }
+  return options;
+}
+
+export function buildAllFacets(
+  books: readonly Book[],
+  filters: Filters,
+): Record<FacetKey, FacetOption[]> {
+  return Object.fromEntries(
+    FACET_KEYS.map((key) => [key, buildFacet(books, filters, key)]),
+  ) as Record<FacetKey, FacetOption[]>;
+}
