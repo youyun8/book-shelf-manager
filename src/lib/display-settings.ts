@@ -2,17 +2,20 @@
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type FontSize = 'small' | 'normal' | 'large' | 'huge';
 export type PageWidth = 'narrow' | 'normal' | 'wide' | 'full';
+export type AccentColor = 'indigo' | 'sky' | 'teal' | 'forest' | 'clay' | 'rose';
 
 export interface DisplaySettings {
   theme: ThemeMode;
   fontSize: FontSize;
   width: PageWidth;
+  accent: AccentColor;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   theme: 'system',
   fontSize: 'normal',
   width: 'normal',
+  accent: 'indigo',
 };
 
 export const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
@@ -34,6 +37,30 @@ export const WIDTH_OPTIONS: { value: PageWidth; label: string }[] = [
   { value: 'wide', label: '寬' },
   { value: 'full', label: '滿版' },
 ];
+
+/**
+ * One hue per colour, with the chroma it can actually reach at the lightness
+ * the buttons use. Every accent and the faint tint in the greys is mixed from
+ * these two numbers, so a colour never has to be listed token by token.
+ */
+const ACCENT_TONES: Record<AccentColor, { label: string; hue: number; chroma: number }> = {
+  indigo: { label: '靛藍', hue: 275, chroma: 0.19 },
+  sky: { label: '天藍', hue: 240, chroma: 0.16 },
+  teal: { label: '青綠', hue: 195, chroma: 0.12 },
+  forest: { label: '森綠', hue: 150, chroma: 0.15 },
+  clay: { label: '磚橘', hue: 45, chroma: 0.16 },
+  rose: { label: '玫瑰', hue: 15, chroma: 0.18 },
+};
+
+export const ACCENT_OPTIONS: { value: AccentColor; label: string }[] = (
+  Object.keys(ACCENT_TONES) as AccentColor[]
+).map((value) => ({ value, label: ACCENT_TONES[value].label }));
+
+/** The swatch shown on the picker: the accent as the light theme mixes it. */
+export function accentSwatch(accent: AccentColor): string {
+  const tone = ACCENT_TONES[accent];
+  return `oklch(52% ${tone.chroma} ${tone.hue})`;
+}
 
 /** Root font size in percent; every size in the app is in `rem`, so all of it scales. */
 const FONT_SCALE: Record<FontSize, string> = {
@@ -65,6 +92,9 @@ export function coerceDisplaySettings(input: unknown): DisplaySettings {
       ? source.fontSize
       : DEFAULT_DISPLAY_SETTINGS.fontSize,
     width: isOneOf(source.width, WIDTH_OPTIONS) ? source.width : DEFAULT_DISPLAY_SETTINGS.width,
+    accent: isOneOf(source.accent, ACCENT_OPTIONS)
+      ? source.accent
+      : DEFAULT_DISPLAY_SETTINGS.accent,
   };
 }
 
@@ -96,4 +126,7 @@ export function applyDisplaySettings(settings: DisplaySettings): void {
   else root.dataset.theme = settings.theme;
   root.style.fontSize = FONT_SCALE[settings.fontSize];
   root.style.setProperty('--app-max-width', MAX_WIDTH[settings.width]);
+  const tone = ACCENT_TONES[settings.accent];
+  root.style.setProperty('--app-hue', String(tone.hue));
+  root.style.setProperty('--app-chroma', String(tone.chroma));
 }
