@@ -60,12 +60,10 @@ describe('rowToBook', () => {
       condition: '收藏',
       location: '客廳書櫃 A1',
       isbn: '9789861897271',
-      cover_url: 'https://example.com/cover.jpg',
       extras: '{"備註":"朋友推薦"}',
     });
     expect(book.ageRange).toBe('0-4 歲');
     expect(book.tags).toEqual(['親子關係', '幽默']);
-    expect(book.coverUrl).toBe('https://example.com/cover.jpg');
     expect(book.extras).toEqual({ 備註: '朋友推薦' });
   });
 
@@ -85,7 +83,6 @@ describe('rowToBook', () => {
       condition: '',
       location: '',
       isbn: '',
-      cover_url: '',
       extras: 'null',
     });
     expect(book.tags).toEqual([]);

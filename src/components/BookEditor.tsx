@@ -19,7 +19,6 @@ const EMPTY: Draft = {
   condition: '',
   location: '',
   isbn: '',
-  coverUrl: '',
 };
 
 const FIELDS: { key: keyof Draft; label: string; placeholder?: string }[] = [
@@ -31,8 +30,7 @@ const FIELDS: { key: keyof Draft; label: string; placeholder?: string }[] = [
   { key: 'channel', label: '購入管道' },
   { key: 'condition', label: '書況', placeholder: '例如 收藏 / 待售' },
   { key: 'location', label: '藏書位置' },
-  { key: 'isbn', label: 'ISBN', placeholder: '有填的話封面查詢會更準' },
-  { key: 'coverUrl', label: '封面連結', placeholder: 'https://…' },
+  { key: 'isbn', label: 'ISBN', placeholder: '有填的話線上書目會更準' },
 ];
 
 function toDraft(book: Book | null): Draft {
