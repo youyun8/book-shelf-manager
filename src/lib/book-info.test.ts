@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Book } from '../types';
+import type { ExternalBookInfo } from './book-info';
 import {
   buildQueries,
+  cacheKey,
   lookupBookInfo,
   LookupError,
   normalizeIsbn,
+  openLibraryCover,
   pickBestVolume,
   pickCover,
+  seedBookInfo,
+  setApiKey,
   shopLinks,
 } from './book-info';
 
@@ -163,6 +168,60 @@ describe('lookupBookInfo', () => {
       }),
     );
     await expect(lookupBookInfo(book(), { force: true })).rejects.toThrow(/網路/);
+  });
+});
+
+describe('openLibraryCover', () => {
+  it('builds an ISBN cover URL that needs no API key', () => {
+    expect(openLibraryCover('978-986-189-727-1')).toBe(
+      'https://covers.openlibrary.org/b/isbn/9789861897271-L.jpg?default=false',
+    );
+    expect(openLibraryCover('')).toBe('');
+  });
+});
+
+describe('seedBookInfo', () => {
+  it('serves prebuilt results without calling the API', async () => {
+    const target = book({ title: '事先查好的書', author: '某作者' });
+    const { fetchMock } = stubFetch([[VOLUME]]);
+    const prebuilt: ExternalBookInfo = {
+      id: 'seeded',
+      title: '事先查好的書',
+      subtitle: '',
+      authors: ['某作者'],
+      publisher: '某出版社',
+      publishedDate: '2020-01-01',
+      description: '',
+      pageCount: null,
+      categories: [],
+      isbn: '',
+      coverUrl: 'https://example.com/cover.jpg',
+      infoLink: '',
+    };
+    seedBookInfo({ [cacheKey(target)]: prebuilt });
+
+    const info = await lookupBookInfo(target);
+    expect(info?.id).toBe('seeded');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('remembers that a prebuilt lookup found nothing', async () => {
+    const target = book({ title: '查不到的書', author: '' });
+    const { fetchMock } = stubFetch([[VOLUME]]);
+    seedBookInfo({ [cacheKey(target)]: null });
+
+    await expect(lookupBookInfo(target)).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('setApiKey', () => {
+  it('adds the key to the request when one is configured', async () => {
+    const { calls } = stubFetch([[VOLUME]]);
+    setApiKey('test-key');
+    await lookupBookInfo(book(), { force: true });
+    setApiKey('');
+    expect(calls[0]).toContain('key=test-key');
   });
 });
 
