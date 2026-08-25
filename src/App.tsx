@@ -3,8 +3,10 @@ import type { Book, FacetKey, SortKey, TextKey, ViewMode } from './types';
 import { EMPTY_FILTERS } from './types';
 import { applyFilters, countActiveFilters, sortBooks } from './lib/filter';
 import { buildAllFacets } from './lib/facets';
-import { loadBundledBooks, readBooksFromFile, SpreadsheetError } from './lib/parse';
+import { SpreadsheetError } from './lib/parse';
+import { loadBundledBooks, readBooksFromFile } from './lib/read-spreadsheet';
 import { downloadCsv } from './lib/export-csv';
+import { seedBookInfo } from './lib/book-info';
 import { searchToState, stateToSearch } from './lib/url-state';
 import { AppHeader } from './components/AppHeader';
 import { FilterPanel } from './components/FilterPanel';
@@ -17,6 +19,7 @@ import { DropOverlay, ErrorState, LoadingState, NoResultState } from './componen
 
 const BASE = import.meta.env.BASE_URL;
 const DATA_URL = `${BASE}data/books.xlsx`;
+const INFO_URL = `${BASE}data/book-info.json`;
 const TEMPLATE_URL = `${BASE}data/template.xlsx`;
 
 type Status = 'loading' | 'ready' | 'error';
@@ -37,6 +40,23 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const describe = useCallback((label: string, count: number) => `${label} · ${count} 本藏書`, []);
+
+  // Covers and book details resolved ahead of time by `npm run data:covers`.
+  // Missing or unreadable is fine: the dialog falls back to a live lookup.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(INFO_URL, { cache: 'no-cache' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { entries?: Record<string, never> } | null) => {
+        if (!cancelled && payload?.entries) seedBookInfo(payload.entries);
+      })
+      .catch(() => {
+        // No prebuilt file: every dialog looks its book up on demand.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load the spreadsheet that ships with the site.
   useEffect(() => {
