@@ -21,19 +21,21 @@
                  ├─ /api/auth/*   註冊、登入、登出、忘記密碼、目前身分
                  └─ /api/books/*  共用書單的讀取與編輯（需登入）
                         │
-                        ├─ D1（SQLite）  帳號、工作階段、書籍資料
-                        └─ R2            上傳過的 Excel 原始檔備份
+                        └─ D1（SQLite）  帳號、工作階段、書籍資料
 ```
 
 未登入時，`/api/books` 一律回 401，網頁只會顯示登入畫面，
 瀏覽器拿不到任何書籍資料。
+
+Excel 是**匯入格式**，不是裝置間同步的檔案。上傳時，瀏覽器會讀取 Excel 並把書籍資料寫入 D1；
+之後手機、平板和電腦都從同一個 D1 資料庫取得最新書單。因此跨裝置同步不需要 R2，
+也不需要讓每台裝置各自保存或同步同一個 Excel 檔案。
 
 | 項目     | 技術                                        |
 | -------- | ------------------------------------------- |
 | 前端     | React 19、TypeScript、Tailwind CSS v4、Vite |
 | 後端     | Cloudflare Workers、Hono                    |
 | 資料庫   | Cloudflare D1（SQLite）                     |
-| 檔案儲存 | Cloudflare R2                               |
 | 登入     | Email + 密碼，PBKDF2 雜湊、HttpOnly Cookie  |
 | 測試     | Vitest                                      |
 
@@ -47,9 +49,10 @@
 4. [Excel 欄位規格](#excel-欄位規格)
 5. [網頁操作說明](#網頁操作說明)
 6. [書封與線上書目](#書封與線上書目)
-7. [安全性說明](#安全性說明)
-8. [疑難排解](#疑難排解)
-9. [專案結構與指令](#專案結構與指令)
+7. [備份與還原](#備份與還原)
+8. [安全性說明](#安全性說明)
+9. [疑難排解](#疑難排解)
+10. [專案結構與指令](#專案結構與指令)
 
 ---
 
@@ -72,45 +75,67 @@ npx wrangler login      # 會開啟瀏覽器，登入後按「Allow」
 npx wrangler whoami     # 確認登入成功
 ```
 
-### 步驟 3：建立資料庫與檔案儲存空間
+### 步驟 3：移除 R2 設定
+
+這個網站以 D1 同步書單，不需要 R2。打開 `wrangler.jsonc`，刪除整個
+`r2_buckets` 區塊（包含前後的括號與逗號）：
+
+```jsonc
+"r2_buckets": [
+  {
+    "binding": "UPLOADS",
+    "bucket_name": "book-shelf-uploads"
+  }
+]
+```
+
+Worker 中的 `UPLOADS` 本來就是選用 binding；刪除設定後，Excel 匯入、D1 儲存及跨裝置同步
+都會照常運作，只是不另外保存使用者上傳的原始檔案。
+
+### 步驟 4：建立 D1 資料庫
 
 ```bash
 npx wrangler d1 create book-shelf-manager
 ```
 
-指令會印出一段設定，其中有一行 `database_id = "xxxxxxxx-..."`，**把這個 id 複製起來**。
+指令會印出資料庫 ID 與一段設定。複製其中的 `database_id`。
 
-```bash
-npx wrangler r2 bucket create book-shelf-uploads
-```
+### 步驟 5：填入 database_id
 
-> 第一次使用 R2 需要先在 Cloudflare 後台 **R2 → 啟用**（免費額度很充足）。
-> 如果不想啟用 R2，可以把 `wrangler.jsonc` 中的 `r2_buckets` 整段刪掉，
-> 功能不受影響，只是上傳的 Excel 原始檔不會被備份。
-
-### 步驟 4：填入 database_id
-
-打開 `wrangler.jsonc`，把這一行換成步驟 3 拿到的 id：
+打開 `wrangler.jsonc`，在 `d1_databases` 中確認以下三個值，並把 `database_id`
+換成步驟 4 取得的實際 ID。不要沿用 repository 內原有的 ID，因為它屬於另一個 Cloudflare 帳號。
 
 ```jsonc
-"database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+"d1_databases": [
+  {
+    "binding": "DB",
+    "database_name": "book-shelf-manager",
+    "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  }
+]
 ```
 
-### 步驟 5：建立資料表
+`binding` 必須維持為 `DB`，Worker 才能找到資料庫。
+
+### 步驟 6：建立資料表
 
 ```bash
 npm run db:migrate
 ```
 
-### 步驟 6：部署
+這會把 `migrations/` 內尚未執行的 migration 套用到線上 D1。第一次執行時若 Wrangler
+詢問是否要繼續，確認顯示的資料庫名稱正確後回答 `y`。
+
+### 步驟 7：部署
 
 ```bash
 npm run deploy
 ```
 
 完成後會印出網址，形如 `https://book-shelf-manager.<你的帳號>.workers.dev`。
+打開網址若看到登入畫面，就代表 Worker、靜態網頁與 D1 binding 都已部署成功。
 
-### 步驟 7：把自己加進允許名單
+### 步驟 8：把自己加進允許名單
 
 **這一步很重要**：沒有列在名單上的 Email 無法註冊，也就看不到任何資料。
 
@@ -124,14 +149,18 @@ npm run db:allow -- 你的信箱@example.com
 npm run db:allow -- 家人的信箱@example.com
 ```
 
-### 步驟 8：註冊並上傳書單
+### 步驟 9：註冊並上傳書單
 
-1. 打開步驟 6 的網址。
+1. 打開步驟 7 的網址。
 2. 點「註冊」，用剛剛加入名單的 Email 設定密碼（至少 10 個字元）。
 3. 登入後點右上角「上傳 Excel」，選擇你的書單檔案。
-4. 確認提示後，書單就會出現，其他人登入也會看到同一份。
+4. 確認提示後，書籍會寫入 D1；其他裝置重新載入或登入後就會看到同一份最新書單。
+5. 用另一台裝置登入並新增或編輯一本書，確認第一台裝置重新整理後能看到變更。
 
-### 步驟 9（選用）：設定忘記密碼的寄信服務
+> 上傳 Excel 會取代 D1 中的整份共用書單。第一次正式匯入前，建議保留原始 Excel；
+> 日後覆蓋前則先用網頁的「匯出」下載 CSV，或依照[備份與還原](#備份與還原)匯出 D1。
+
+### 步驟 10（選用）：設定忘記密碼的寄信服務
 
 不設定也能用，只是「忘記密碼」寄不出信（重設連結會寫進 Worker 記錄檔，
 可用 `npx wrangler tail` 查看後手動傳給對方）。要讓它自動寄信：
@@ -154,7 +183,7 @@ npm run db:allow -- 家人的信箱@example.com
 
 5. 重新部署 `npm run deploy`，然後在登入畫面點「忘記密碼？」測試一次。
 
-### 步驟 10（選用）：設定 GitHub 自動部署
+### 步驟 11（選用）：設定 GitHub 自動部署
 
 設定後，只要推到 `main` 就會自動測試、套用資料庫更新並重新部署。
 
@@ -167,7 +196,7 @@ npm run db:allow -- 家人的信箱@example.com
    - `CLOUDFLARE_ACCOUNT_ID`：步驟 2 的 Account ID
 4. 之後推送到 `main` 即會自動部署（`.github/workflows/deploy.yml`）。
 
-### 步驟 11（選用）：自訂網域
+### 步驟 12（選用）：自訂網域
 
 在 Cloudflare 後台 **Workers & Pages → book-shelf-manager → Settings → Domains & Routes**
 新增自己的網域即可，不需要改程式。
@@ -197,7 +226,7 @@ npm run db:allow -- 家人的信箱@example.com
 npm run db:migrate:local   # 只需第一次
 npm run db:allow -- 你的信箱@example.com --local
 
-# 終端機 1：API（Worker + D1 + R2 的本機模擬）
+# 終端機 1：API（Worker + D1 的本機模擬）
 npm run dev:api
 
 # 終端機 2：網頁（會自動把 /api 轉送到終端機 1）
@@ -263,7 +292,7 @@ npm run build && npm run preview
 | 手機         | 上方「篩選」按鈕會叫出篩選抽屜                                             |
 
 > 上傳 Excel 會取代整份共用書單，動作前會跳出確認視窗。
-> 原始檔案會備份到 R2，若不小心覆蓋掉，可以在 Cloudflare 後台的 R2 找回先前上傳的檔案。
+> 系統不會保存原始 Excel；重要異動前請先匯出 CSV 或備份 D1。
 
 ---
 
@@ -290,6 +319,36 @@ VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
 > **為什麼不是直接嵌入誠品或 Amazon 的頁面？**
 > 這兩個網站都以 `X-Frame-Options` 禁止被其他網站用 iframe 嵌入，也不開放跨網域讀取資料。
 > 因此改用官方開放、允許跨網域查詢的 Google Books API 取得封面與書目，再以連結導向各書店。
+
+---
+
+## 備份與還原
+
+D1 是共用書單的唯一資料來源，R2 並不是同步所必需。建議同時使用以下其中一種備份方式：
+
+| 方式 | 適合情況 | 做法 |
+| ---- | -------- | ---- |
+| 網頁匯出 CSV | 想保留目前看到的書單，並能用 Excel 開啟 | 清除不需要的篩選條件後按「匯出」，把下載的 `.csv` 存到 Google Drive、OneDrive 或其他個人雲端硬碟 |
+| 匯出完整 D1 | 要備份書籍、帳號、允許名單及其他資料表 | 在專案目錄執行下面的 `wrangler d1 export` 指令 |
+
+匯出完整線上資料庫：
+
+```bash
+mkdir -p backups
+npx wrangler d1 export book-shelf-manager --remote --output "backups/book-shelf-manager.sql"
+```
+
+`backups/book-shelf-manager.sql` 可能包含 Email、密碼雜湊及有效工作階段的雜湊值，
+不要放進公開 repository。建議保存到只有管理者能存取的位置。
+
+需要還原時，請先確認目前選用的是正確的 Cloudflare 帳號與 D1 資料庫，再執行：
+
+```bash
+npx wrangler d1 execute book-shelf-manager --remote --file "backups/book-shelf-manager.sql"
+```
+
+還原會改動線上資料；若線上資料庫仍可使用，還原前先再匯出一份當下狀態。一般使用者若只需要
+恢復書單，也可以直接把先前匯出的 CSV 重新上傳，不必還原帳號與工作階段。
 
 ---
 
@@ -325,7 +384,7 @@ VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
 | 詳細視窗顯示「查詢額度已用完」       | Google Books 免金鑰配額依 IP 計算。查到封面後按「把這張封面存進書單」即可一勞永逸，或設定 API 金鑰。                                                                       |
 | 忘記密碼沒收到信                     | 還沒設定 `RESEND_API_KEY`（連結會寫進 `npx wrangler tail` 的記錄），或 Resend 網域尚未驗證。未驗證時寄件人只能是 `onboarding@resend.dev`，且只能寄給你註冊 Resend 的信箱。 |
 | 重設連結顯示「已經失效」             | 連結超過 60 分鐘、已經用過，或後來又申請了新的連結（舊的會立刻作廢）。重新申請一次即可。                                                                                   |
-| 想看之前上傳過的 Excel               | Cloudflare 後台 → R2 → `book-shelf-uploads` → `imports/` 資料夾。                                                                                                          |
+| 想找之前上傳的原始 Excel             | 系統不保存原始檔；請查看當初上傳裝置或個人雲端硬碟。若只要恢復書單，可重新上傳先前匯出的 CSV 或還原 D1 備份。                                                            |
 | GitHub Actions 部署失敗              | 確認 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ACCOUNT_ID` 兩個 secret 都有設定，且權杖有 Workers 編輯權限。                                                                   |
 
 ---
@@ -363,13 +422,13 @@ VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
 │  │  ├─ book-info.ts      # Google Books 查詢與書店連結
 │  │  └─ export-csv.ts     # 匯出結果
 │  └─ App.tsx              # 登入與書單的切換
-└─ wrangler.jsonc          # Worker、D1、R2 設定
+└─ wrangler.jsonc          # Worker 與 D1 設定
 ```
 
 | 指令                          | 用途                                         |
 | ----------------------------- | -------------------------------------------- |
 | `npm run dev`                 | 前端開發伺服器（需搭配 `dev:api`）           |
-| `npm run dev:api`             | 本機 Worker + D1 + R2                        |
+| `npm run dev:api`             | 本機 Worker + D1                             |
 | `npm run build`               | 型別檢查 + 打包前端                          |
 | `npm run preview`             | 用 Worker 跑打包後的完整網站                 |
 | `npm run deploy`              | 打包並部署到 Cloudflare                      |
