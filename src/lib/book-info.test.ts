@@ -5,8 +5,10 @@ import {
   lookupBookInfo,
   LookupError,
   normalizeIsbn,
+  openLibraryCover,
   pickBestVolume,
   pickCover,
+  setApiKey,
   shopLinks,
 } from './book-info';
 
@@ -163,6 +165,25 @@ describe('lookupBookInfo', () => {
       }),
     );
     await expect(lookupBookInfo(book(), { force: true })).rejects.toThrow(/網路/);
+  });
+});
+
+describe('openLibraryCover', () => {
+  it('builds an ISBN cover URL that needs no API key', () => {
+    expect(openLibraryCover('978-986-189-727-1')).toBe(
+      'https://covers.openlibrary.org/b/isbn/9789861897271-L.jpg?default=false',
+    );
+    expect(openLibraryCover('')).toBe('');
+  });
+});
+
+describe('setApiKey', () => {
+  it('adds the key to the request when one is configured', async () => {
+    const { calls } = stubFetch([[VOLUME]]);
+    setApiKey('test-key');
+    await lookupBookInfo(book(), { force: true });
+    setApiKey('');
+    expect(calls[0]).toContain('key=test-key');
   });
 });
 
