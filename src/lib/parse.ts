@@ -1,5 +1,6 @@
 import type { Book } from '../types';
 import { mapHeaderRow, headerScore } from './columns';
+import type { ColumnField, HeaderMap } from './columns';
 
 const TAG_SEPARATORS = /[、,，/／;；|｜\n\r]+/;
 
@@ -48,6 +49,44 @@ export function findHeaderIndex(rows: readonly Row[], lookahead = 10): number {
   return best;
 }
 
+/** How many rows actually have a value in this column. */
+function filledCount(rows: readonly Row[], index: number): number {
+  let count = 0;
+  for (const row of rows) {
+    if (cellToText(row[index]) !== '') count += 1;
+  }
+  return count;
+}
+
+/**
+ * Picks one column per field. When a sheet carries several columns for the same
+ * idea — `狀態` beside `書況`, say — the one people actually fill in is the one
+ * worth showing, so the fullest column wins and the header order breaks ties.
+ * The columns not chosen are kept as extra fields, so nothing is lost.
+ */
+export function chooseColumns(
+  candidates: HeaderMap['candidates'],
+  rows: readonly Row[],
+): Partial<Record<ColumnField, number>> {
+  const chosen: Partial<Record<ColumnField, number>> = {};
+  for (const [field, indexes] of Object.entries(candidates) as [ColumnField, number[]][]) {
+    if (indexes.length === 0) continue;
+    let best = indexes[0] as number;
+    if (indexes.length > 1) {
+      let bestCount = filledCount(rows, best);
+      for (const index of indexes.slice(1)) {
+        const count = filledCount(rows, index);
+        if (count > bestCount) {
+          best = index;
+          bestCount = count;
+        }
+      }
+    }
+    chosen[field] = best;
+  }
+  return chosen;
+}
+
 export class SpreadsheetError extends Error {}
 
 /** Converts raw sheet rows into books. Throws when no header row is found. */
@@ -57,7 +96,15 @@ export function rowsToBooks(rows: readonly Row[]): Book[] {
     throw new SpreadsheetError('找不到標題列，請確認第一列包含「書名」「作者」等欄位名稱。');
   }
 
-  const { fields, extras } = mapHeaderRow(rows[headerIndex] ?? []);
+  const header = rows[headerIndex] ?? [];
+  const { candidates } = mapHeaderRow(header);
+  const dataRows = rows.slice(headerIndex + 1);
+  const fields = chooseColumns(candidates, dataRows);
+  const used = new Set(Object.values(fields));
+  const extras = header
+    .map((label, index) => ({ index, label: cellToText(label as Cell) }))
+    .filter((column) => column.label !== '' && !used.has(column.index));
+
   const at = (row: Row, index: number | undefined): Cell =>
     index === undefined ? null : row[index];
 
