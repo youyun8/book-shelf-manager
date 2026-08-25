@@ -57,18 +57,28 @@ export function normalizeHeader(raw: unknown): string {
 
 /** Maps a header row to book fields. Unmapped columns are reported separately. */
 export interface HeaderMap {
+  /** Best guess per field, judged on the header text alone. */
   fields: Partial<Record<ColumnField, number>>;
+  /**
+   * Every column whose header matches a field, in alias order. Sheets grown
+   * over time often carry two columns for the same idea (`狀態` next to `書況`),
+   * and only the data says which one is actually in use.
+   */
+  candidates: Partial<Record<ColumnField, number[]>>;
   extras: { index: number; label: string }[];
 }
 
 export function mapHeaderRow(headerRow: readonly unknown[]): HeaderMap {
   const normalized = headerRow.map(normalizeHeader);
-  const fields: Partial<Record<ColumnField, number>> = {};
+  const candidates: Partial<Record<ColumnField, number[]>> = {};
   const taken = new Set<number>();
 
   const claim = (field: ColumnField, index: number) => {
-    if (fields[field] !== undefined || taken.has(index)) return;
-    fields[field] = index;
+    if (taken.has(index)) return;
+    const list = candidates[field] ?? [];
+    if (list.includes(index)) return;
+    list.push(index);
+    candidates[field] = list;
     taken.add(index);
   };
 
@@ -80,7 +90,7 @@ export function mapHeaderRow(headerRow: readonly unknown[]): HeaderMap {
     }
   }
   for (const field of FIELD_ORDER) {
-    if (fields[field] !== undefined) continue;
+    if (candidates[field] !== undefined) continue;
     for (const alias of COLUMN_ALIASES[field]) {
       const index = normalized.findIndex((header) => header.includes(alias));
       if (index !== -1) {
@@ -90,11 +100,17 @@ export function mapHeaderRow(headerRow: readonly unknown[]): HeaderMap {
     }
   }
 
+  const fields: Partial<Record<ColumnField, number>> = {};
+  for (const field of FIELD_ORDER) {
+    const first = candidates[field]?.[0];
+    if (first !== undefined) fields[field] = first;
+  }
+
   const extras = headerRow
     .map((label, index) => ({ index, label: String(label ?? '').trim() }))
     .filter((column) => column.label !== '' && !taken.has(column.index));
 
-  return { fields, extras };
+  return { fields, candidates, extras };
 }
 
 /** How many known fields a row looks like it contains. Used to find the header. */

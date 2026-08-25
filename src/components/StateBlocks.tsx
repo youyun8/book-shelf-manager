@@ -9,17 +9,16 @@ export function LoadingState() {
   );
 }
 
-export function ErrorState({ message, onPickFile }: { message: string; onPickFile: () => void }) {
+export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line bg-surface py-16 text-center">
       <IconBooks className="h-8 w-8 text-fg-subtle" />
       <div>
-        <p className="text-sm font-medium text-fg">無法載入書單</p>
+        <p className="text-sm font-medium text-fg">無法載入共用書單</p>
         <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">{message}</p>
       </div>
-      <button type="button" className="btn btn-primary" onClick={onPickFile}>
-        <IconUpload className="h-4 w-4" />
-        改為載入本機 Excel
+      <button type="button" className="btn btn-primary" onClick={onRetry}>
+        重新載入
       </button>
     </div>
   );

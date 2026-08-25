@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { findHeaderIndex, parseCsv, parsePrice, rowsToBooks, splitTags } from './parse';
+import {
+  chooseColumns,
+  findHeaderIndex,
+  parseCsv,
+  parsePrice,
+  rowsToBooks,
+  splitTags,
+} from './parse';
 import { mapHeaderRow, normalizeHeader } from './columns';
 import type { Row } from './parse';
 
@@ -54,9 +61,9 @@ describe('mapHeaderRow', () => {
   });
 
   it('prefers the most specific alias when several columns look similar', () => {
-    const { fields, extras } = mapHeaderRow(['書名', '價格', '購入價格']);
+    const { fields, candidates } = mapHeaderRow(['書名', '價格', '購入價格']);
     expect(fields.price).toBe(2);
-    expect(extras.map((extra) => extra.label)).toEqual(['價格']);
+    expect(candidates.price).toEqual([2, 1]);
   });
 
   it('maps the optional lookup columns', () => {
@@ -128,6 +135,17 @@ describe('rowsToBooks', () => {
     expect(books[0]?.extras).toEqual({ 備註: '朋友推薦' });
   });
 
+  it('reads the filled duplicate column and keeps the other one as an extra', () => {
+    const books = rowsToBooks([
+      ['書名', '狀態', '新舊', '書況'],
+      ['小小迷路', '收藏', '近新', ''],
+      ['小藍和小黃', '待售', '', ''],
+    ]);
+    expect(books[0]?.condition).toBe('收藏');
+    expect(books[0]?.extras).toEqual({ 新舊: '近新' });
+    expect(books[1]?.condition).toBe('待售');
+  });
+
   it('throws a readable error when the header is missing', () => {
     expect(() =>
       rowsToBooks([
@@ -135,6 +153,33 @@ describe('rowsToBooks', () => {
         ['c', 'd'],
       ]),
     ).toThrow(/標題列/);
+  });
+});
+
+describe('chooseColumns', () => {
+  it('keeps the header order when only one column matches', () => {
+    const { candidates } = mapHeaderRow(['書名', '出版社']);
+    expect(chooseColumns(candidates, [['小小迷路', '格林文化']])).toEqual({
+      title: 0,
+      publisher: 1,
+    });
+  });
+
+  it('picks the column people actually filled in', () => {
+    // `書況` is the more specific header, but this sheet only fills `狀態`.
+    const { candidates } = mapHeaderRow(['書名', '狀態', '書況']);
+    const rows = [
+      ['小小迷路', '收藏', ''],
+      ['小藍和小黃', '待售', ''],
+      ['田鼠阿佛', '收藏', ''],
+    ];
+    expect(chooseColumns(candidates, rows).condition).toBe(1);
+  });
+
+  it('falls back to the more specific header when both are equally filled', () => {
+    const { candidates } = mapHeaderRow(['書名', '狀態', '書況']);
+    const rows = [['小小迷路', '收藏', '二手']];
+    expect(chooseColumns(candidates, rows).condition).toBe(2);
   });
 });
 

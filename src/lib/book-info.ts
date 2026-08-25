@@ -18,7 +18,33 @@ export interface ExternalBookInfo {
 
 export class LookupError extends Error {}
 
+/** Lookups already resolved earlier in this session. */
+const seeded = new Map<string, ExternalBookInfo | null>();
+
+let apiKey = readEnvApiKey();
+
+function readEnvApiKey(): string {
+  // Present when the site is built with VITE_GOOGLE_BOOKS_KEY; absent in Node.
+  try {
+    return (import.meta.env?.VITE_GOOGLE_BOOKS_KEY as string | undefined) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Raises the request quota above the shared per-IP anonymous limit. */
+export function setApiKey(key: string): void {
+  apiKey = key;
+}
+
+/** Cover by ISBN from Open Library: no key, no quota, and no CORS needed. */
+export function openLibraryCover(isbn: string): string {
+  const normalized = normalizeIsbn(isbn);
+  return normalized === '' ? '' : `${OPEN_LIBRARY_COVER}/${normalized}-L.jpg?default=false`;
+}
+
 const ENDPOINT = 'https://www.googleapis.com/books/v1/volumes';
+const OPEN_LIBRARY_COVER = 'https://covers.openlibrary.org/b/isbn';
 const TIMEOUT_MS = 12_000;
 const CACHE_PREFIX = 'bsm:book-info:v1:';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -178,7 +204,8 @@ export function cacheKey(book: Book): string {
 }
 
 async function fetchVolumes(query: string, signal?: AbortSignal): Promise<Volume[]> {
-  const url = `${ENDPOINT}?q=${encodeURIComponent(query)}&maxResults=10&printType=books`;
+  const key = apiKey === '' ? '' : `&key=${encodeURIComponent(apiKey)}`;
+  const url = `${ENDPOINT}?q=${encodeURIComponent(query)}&maxResults=10&printType=books${key}`;
   let response: Response;
   try {
     response = await fetch(url, { signal });
@@ -187,7 +214,11 @@ async function fetchVolumes(query: string, signal?: AbortSignal): Promise<Volume
     throw new LookupError('無法連線到 Google Books，請確認網路連線後再試。');
   }
   if (!response.ok) {
-    if (response.status === 429) throw new LookupError('查詢次數過多，請稍後再試。');
+    if (response.status === 429) {
+      throw new LookupError(
+        '這個網路的 Google Books 查詢額度已用完（行動網路較常發生）。可稍後再試，或改用 Wi-Fi。',
+      );
+    }
     if (response.status === 403)
       throw new LookupError('Google Books 目前拒絕這次查詢，請稍後再試。');
     throw new LookupError(`查詢失敗（HTTP ${response.status}）。`);
@@ -207,6 +238,8 @@ export async function lookupBookInfo(
 ): Promise<ExternalBookInfo | null> {
   const key = cacheKey(book);
   if (!options.force) {
+    const preloaded = seeded.get(key);
+    if (preloaded !== undefined) return preloaded;
     const cached = readCache(key);
     if (cached !== undefined) return cached;
   }
@@ -221,10 +254,12 @@ export async function lookupBookInfo(
       const volumes = await fetchVolumes(query, timeout.signal);
       const match = pickBestVolume(volumes, book);
       if (match) {
+        seeded.set(key, match);
         writeCache(key, match);
         return match;
       }
     }
+    seeded.set(key, null);
     writeCache(key, null);
     return null;
   } catch (cause) {

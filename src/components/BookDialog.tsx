@@ -4,14 +4,17 @@ import { cn } from '../lib/cn';
 import { conditionClass, formatPrice } from '../lib/badge';
 import { useBookInfo } from '../hooks/useBookInfo';
 import { BookInfoPanel, OnlineRecord } from './BookInfoPanel';
-import { IconClose } from './icons';
+import { IconClose, IconPencil } from './icons';
 
 interface BookDialogProps {
   book: Book | null;
   onClose: () => void;
+  onEdit: (book: Book) => void;
+  /** Stores a looked-up cover on the shared record. */
+  onSaveCover: (book: Book, coverUrl: string) => void;
 }
 
-export function BookDialog({ book, onClose }: BookDialogProps) {
+export function BookDialog({ book, onClose, onEdit, onSaveCover }: BookDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { state, retry } = useBookInfo(book);
 
@@ -66,6 +69,14 @@ export function BookDialog({ book, onClose }: BookDialogProps) {
               )}
               <button
                 type="button"
+                onClick={() => onEdit(book)}
+                className="btn px-2.5 py-1.5 text-xs"
+              >
+                <IconPencil className="h-3.5 w-3.5" />
+                編輯
+              </button>
+              <button
+                type="button"
                 onClick={onClose}
                 aria-label="關閉"
                 className="focus-ring rounded-lg p-1.5 text-fg-subtle transition hover:bg-surface-muted hover:text-fg"
@@ -77,7 +88,12 @@ export function BookDialog({ book, onClose }: BookDialogProps) {
 
           <div className="flex flex-col gap-6 px-6 py-5 sm:flex-row">
             <div className="w-full shrink-0 sm:w-44">
-              <BookInfoPanel book={book} state={state} onRetry={retry} />
+              <BookInfoPanel
+                book={book}
+                state={state}
+                onRetry={retry}
+                onSaveCover={(coverUrl) => onSaveCover(book, coverUrl)}
+              />
             </div>
 
             <div className="min-w-0 flex-1 space-y-5">
