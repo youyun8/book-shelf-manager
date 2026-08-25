@@ -26,9 +26,14 @@ const HEADERS = [
 
 const WIDTHS = [22, 14, 14, 12, 14, 46, 12, 22, 14, 10, 10, 14];
 
+// Optional columns: an ISBN makes the online lookup exact, and a cover URL
+// overrides the looked-up image.
+const TEMPLATE_HEADERS = [...HEADERS, 'ISBN', '封面連結'];
+const TEMPLATE_WIDTHS = [...WIDTHS, 16, 24];
+
 // Two hint rows so the format of each column is obvious when the file is opened.
 const TEMPLATE_ROWS = [
-  HEADERS,
+  TEMPLATE_HEADERS,
   [
     '走在夢的路上',
     '刀根里衣',
@@ -275,7 +280,10 @@ const SAMPLE_ROWS = [
 
 mkdirSync(dataDir, { recursive: true });
 
-const template = rowsToXlsx(TEMPLATE_ROWS, { sheetName: '書單', columnWidths: WIDTHS });
+const template = rowsToXlsx(TEMPLATE_ROWS, {
+  sheetName: '書單',
+  columnWidths: TEMPLATE_WIDTHS,
+});
 writeFileSync(resolve(dataDir, 'template.xlsx'), template);
 console.log(`寫入 public/data/template.xlsx（${template.length} bytes）`);
 

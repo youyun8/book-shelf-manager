@@ -20,6 +20,10 @@ export interface Book {
   condition: string;
   /** `藏書位置` */
   location: string;
+  /** `ISBN`, used to look the book up online. */
+  isbn: string;
+  /** `封面連結`, an image URL that overrides the looked-up cover. */
+  coverUrl: string;
   /** Columns that do not map to a known field, kept for the detail view. */
   extras: Record<string, string>;
 }
