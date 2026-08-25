@@ -22,11 +22,3 @@ export async function readBooksFromFile(file: File | Blob, name?: string): Promi
     throw new SpreadsheetError('無法讀取這個 Excel 檔案，請確認檔案格式為 .xlsx。');
   }
 }
-
-/** Loads the spreadsheet that ships with the site (`public/data/books.xlsx`). */
-export async function loadBundledBooks(url: string): Promise<Book[]> {
-  const response = await fetch(url, { cache: 'no-cache' });
-  if (!response.ok) throw new SpreadsheetError(`讀取書單失敗（HTTP ${response.status}）。`);
-  const blob = await response.blob();
-  return readBooksFromFile(blob, url);
-}
