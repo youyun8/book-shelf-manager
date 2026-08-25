@@ -31,6 +31,18 @@ export const COLUMN_ALIASES: Record<ColumnField, string[]> = {
   price: ['購入價格', '價格', '售價', '定價', '金額', 'price', 'cost'],
   condition: ['書況', '狀態', '書籍狀態', 'condition', 'status'],
   location: ['藏書位置', '存放位置', '書櫃位置', '擺放位置', '位置', 'location', 'shelf'],
+  isbn: ['isbn', 'isbn13', 'isbn10', '國際書碼', '條碼'],
+  coverUrl: [
+    '封面連結',
+    '封面網址',
+    '封面',
+    '書封',
+    '圖片連結',
+    '圖片',
+    'cover',
+    'coverurl',
+    'image',
+  ],
 };
 
 const FIELD_ORDER = Object.keys(COLUMN_ALIASES) as ColumnField[];
