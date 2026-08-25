@@ -1,5 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { FONT_SIZE_OPTIONS, THEME_OPTIONS, WIDTH_OPTIONS } from '../lib/display-settings';
+import type { AccentColor } from '../lib/display-settings';
+import {
+  ACCENT_OPTIONS,
+  accentSwatch,
+  FONT_SIZE_OPTIONS,
+  THEME_OPTIONS,
+  WIDTH_OPTIONS,
+} from '../lib/display-settings';
 import { useDisplaySettings } from '../hooks/useDisplaySettings';
 import { cn } from '../lib/cn';
 import { IconSliders } from './icons';
@@ -37,7 +44,42 @@ function ChoiceRow<T extends string>({ label, options, value, onChange }: Choice
   );
 }
 
-/** Per-browser reading preferences: colour theme, text size and page width. */
+interface AccentRowProps {
+  value: AccentColor;
+  onChange: (value: AccentColor) => void;
+}
+
+/** The accent is picked from the colour itself rather than from its name. */
+function AccentRow({ value, onChange }: AccentRowProps) {
+  return (
+    <div role="group" aria-label="色調">
+      <p className="mb-1.5 text-xs font-medium text-fg-muted">色調</p>
+      <div className="flex flex-wrap gap-2">
+        {ACCENT_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            title={option.label}
+            aria-label={option.label}
+            aria-pressed={option.value === value}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              'focus-ring h-7 w-7 rounded-full border-2 transition',
+              option.value === value ? 'border-fg' : 'border-transparent hover:border-line-strong',
+            )}
+          >
+            <span
+              className="block h-full w-full rounded-full"
+              style={{ backgroundColor: accentSwatch(option.value) }}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Per-browser reading preferences: colour theme, accent, text size and width. */
 export function DisplaySettingsMenu() {
   const { settings, update, reset, isDefault } = useDisplaySettings();
   const [open, setOpen] = useState(false);
@@ -86,6 +128,7 @@ export function DisplaySettingsMenu() {
             value={settings.theme}
             onChange={(value) => update('theme', value)}
           />
+          <AccentRow value={settings.accent} onChange={(value) => update('accent', value)} />
           <ChoiceRow
             label="字級"
             options={FONT_SIZE_OPTIONS}
