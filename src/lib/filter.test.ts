@@ -19,6 +19,8 @@ function book(overrides: Partial<Book>): Book {
     price: null,
     condition: '',
     location: '',
+    isbn: '',
+    coverUrl: '',
     extras: {},
     ...overrides,
   };
