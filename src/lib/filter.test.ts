@@ -20,7 +20,6 @@ function book(overrides: Partial<Book>): Book {
     condition: '',
     location: '',
     isbn: '',
-    coverUrl: '',
     extras: {},
     ...overrides,
   };

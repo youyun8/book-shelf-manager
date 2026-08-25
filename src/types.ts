@@ -22,8 +22,6 @@ export interface Book {
   location: string;
   /** `ISBN`, used to look the book up online. */
   isbn: string;
-  /** `封面連結`, an image URL that overrides the looked-up cover. */
-  coverUrl: string;
   /** Columns that do not map to a known field, kept for the detail view. */
   extras: Record<string, string>;
 }
@@ -53,6 +51,11 @@ export interface FacetOption {
 
 export type SortKey = 'default' | 'title' | 'priceAsc' | 'priceDesc' | 'publisher';
 export type ViewMode = 'grid' | 'table';
+
+/** How many books one page shows; `all` puts the whole result on one page. */
+export type PageSize = 12 | 24 | 48 | 96 | 'all';
+export const PAGE_SIZES: PageSize[] = [12, 24, 48, 96, 'all'];
+export const DEFAULT_PAGE_SIZE: PageSize = 24;
 
 export const EMPTY_FILTERS: Filters = {
   facets: { publisher: [], ageRange: [], tags: [], channel: [], condition: [] },

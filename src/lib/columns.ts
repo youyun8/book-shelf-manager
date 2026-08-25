@@ -32,18 +32,25 @@ export const COLUMN_ALIASES: Record<ColumnField, string[]> = {
   condition: ['書況', '狀態', '書籍狀態', 'condition', 'status'],
   location: ['藏書位置', '存放位置', '書櫃位置', '擺放位置', '位置', 'location', 'shelf'],
   isbn: ['isbn', 'isbn13', 'isbn10', '國際書碼', '條碼'],
-  coverUrl: [
-    '封面連結',
-    '封面網址',
-    '封面',
-    '書封',
-    '圖片連結',
-    '圖片',
-    'cover',
-    'coverurl',
-    'image',
-  ],
 };
+
+/**
+ * Headers that are recognized only so they can be dropped. The shelf no longer
+ * shows book images, and older sheets still carry a cover column; claiming it
+ * here keeps it out of the detail view's extra rows, and keeps `圖片` from
+ * being mistaken for `繪者` by the substring pass.
+ */
+export const IGNORED_ALIASES = [
+  '封面連結',
+  '封面網址',
+  '封面',
+  '書封',
+  '圖片連結',
+  '圖片',
+  'cover',
+  'coverurl',
+  'image',
+];
 
 const FIELD_ORDER = Object.keys(COLUMN_ALIASES) as ColumnField[];
 
@@ -81,6 +88,13 @@ export function mapHeaderRow(headerRow: readonly unknown[]): HeaderMap {
     candidates[field] = list;
     taken.add(index);
   };
+
+  // Dropped columns are claimed first, so no field can pick them up later.
+  for (const alias of IGNORED_ALIASES) {
+    for (let index = 0; index < normalized.length; index += 1) {
+      if (normalized[index] === alias) taken.add(index);
+    }
+  }
 
   // Exact matches win over substring matches, so `價格` never steals `購入價格`.
   for (const field of FIELD_ORDER) {
