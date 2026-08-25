@@ -33,10 +33,9 @@ export function useDisplaySettings(): DisplaySettingsControls {
 
   const reset = useCallback(() => setSettings(DEFAULT_DISPLAY_SETTINGS), []);
 
-  const isDefault =
-    settings.theme === DEFAULT_DISPLAY_SETTINGS.theme &&
-    settings.fontSize === DEFAULT_DISPLAY_SETTINGS.fontSize &&
-    settings.width === DEFAULT_DISPLAY_SETTINGS.width;
+  const isDefault = (Object.keys(DEFAULT_DISPLAY_SETTINGS) as (keyof DisplaySettings)[]).every(
+    (key) => settings[key] === DEFAULT_DISPLAY_SETTINGS[key],
+  );
 
   return { settings, update, reset, isDefault };
 }

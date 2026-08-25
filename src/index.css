@@ -3,21 +3,29 @@
 /* Light palette. Dark values are swapped below; every token is defined here
    first so a colour never exists only inside the media query. */
 :root {
-  --app-bg: oklch(98.2% 0.003 265);
-  --app-surface: oklch(100% 0 0);
-  --app-surface-muted: oklch(96.6% 0.004 265);
-  --app-border: oklch(91.5% 0.006 265);
-  --app-border-strong: oklch(85% 0.008 265);
-  --app-fg: oklch(24% 0.02 265);
-  --app-fg-muted: oklch(50% 0.015 265);
-  --app-fg-subtle: oklch(62% 0.012 265);
-  --app-accent: oklch(52% 0.19 275);
-  --app-accent-hover: oklch(46% 0.19 275);
-  --app-accent-fg: oklch(100% 0 0);
-  --app-accent-soft: oklch(95.5% 0.03 275);
-  --app-shadow: 0 1px 2px oklch(24% 0.02 265 / 0.06), 0 8px 24px oklch(24% 0.02 265 / 0.05);
-  /* Overwritten from the display settings; see src/lib/display-settings.ts. */
+  /* Hue and chroma of the chosen accent, overwritten from the display
+     settings; see src/lib/display-settings.ts. Every colour below is mixed
+     from them, so a new accent needs no new tokens. The greys use a sliver of
+     the same chroma, which is what keeps a page looking of one colour. */
+  --app-hue: 275;
+  --app-chroma: 0.19;
   --app-max-width: 100rem;
+
+  --app-bg: oklch(98.2% 0.003 var(--app-hue));
+  --app-surface: oklch(100% 0 0);
+  --app-surface-muted: oklch(96.6% 0.004 var(--app-hue));
+  --app-border: oklch(91.5% 0.006 var(--app-hue));
+  --app-border-strong: oklch(85% 0.008 var(--app-hue));
+  --app-fg: oklch(24% 0.02 var(--app-hue));
+  --app-fg-muted: oklch(50% 0.015 var(--app-hue));
+  --app-fg-subtle: oklch(62% 0.012 var(--app-hue));
+  --app-accent: oklch(52% var(--app-chroma) var(--app-hue));
+  --app-accent-hover: oklch(46% var(--app-chroma) var(--app-hue));
+  --app-accent-fg: oklch(100% 0 0);
+  --app-accent-soft: oklch(95.5% calc(var(--app-chroma) * 0.16) var(--app-hue));
+  --app-shadow:
+    0 1px 2px oklch(24% 0.02 var(--app-hue) / 0.06),
+    0 8px 24px oklch(24% 0.02 var(--app-hue) / 0.05);
 }
 
 /* Dark values, used when the system asks for them and no explicit choice was
@@ -25,35 +33,35 @@
    palette because a media query cannot share a selector with a plain rule. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --app-bg: oklch(19% 0.012 265);
-    --app-surface: oklch(23% 0.014 265);
-    --app-surface-muted: oklch(26.5% 0.015 265);
-    --app-border: oklch(31% 0.016 265);
-    --app-border-strong: oklch(38% 0.018 265);
-    --app-fg: oklch(95% 0.005 265);
-    --app-fg-muted: oklch(75% 0.012 265);
-    --app-fg-subtle: oklch(63% 0.014 265);
-    --app-accent: oklch(70% 0.15 275);
-    --app-accent-hover: oklch(76% 0.15 275);
-    --app-accent-fg: oklch(19% 0.03 275);
-    --app-accent-soft: oklch(30% 0.05 275);
+    --app-bg: oklch(19% 0.012 var(--app-hue));
+    --app-surface: oklch(23% 0.014 var(--app-hue));
+    --app-surface-muted: oklch(26.5% 0.015 var(--app-hue));
+    --app-border: oklch(31% 0.016 var(--app-hue));
+    --app-border-strong: oklch(38% 0.018 var(--app-hue));
+    --app-fg: oklch(95% 0.005 var(--app-hue));
+    --app-fg-muted: oklch(75% 0.012 var(--app-hue));
+    --app-fg-subtle: oklch(63% 0.014 var(--app-hue));
+    --app-accent: oklch(70% calc(var(--app-chroma) * 0.79) var(--app-hue));
+    --app-accent-hover: oklch(76% calc(var(--app-chroma) * 0.79) var(--app-hue));
+    --app-accent-fg: oklch(19% calc(var(--app-chroma) * 0.16) var(--app-hue));
+    --app-accent-soft: oklch(30% calc(var(--app-chroma) * 0.26) var(--app-hue));
     --app-shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 8px 24px oklch(0% 0 0 / 0.25);
   }
 }
 
 :root[data-theme='dark'] {
-  --app-bg: oklch(19% 0.012 265);
-  --app-surface: oklch(23% 0.014 265);
-  --app-surface-muted: oklch(26.5% 0.015 265);
-  --app-border: oklch(31% 0.016 265);
-  --app-border-strong: oklch(38% 0.018 265);
-  --app-fg: oklch(95% 0.005 265);
-  --app-fg-muted: oklch(75% 0.012 265);
-  --app-fg-subtle: oklch(63% 0.014 265);
-  --app-accent: oklch(70% 0.15 275);
-  --app-accent-hover: oklch(76% 0.15 275);
-  --app-accent-fg: oklch(19% 0.03 275);
-  --app-accent-soft: oklch(30% 0.05 275);
+  --app-bg: oklch(19% 0.012 var(--app-hue));
+  --app-surface: oklch(23% 0.014 var(--app-hue));
+  --app-surface-muted: oklch(26.5% 0.015 var(--app-hue));
+  --app-border: oklch(31% 0.016 var(--app-hue));
+  --app-border-strong: oklch(38% 0.018 var(--app-hue));
+  --app-fg: oklch(95% 0.005 var(--app-hue));
+  --app-fg-muted: oklch(75% 0.012 var(--app-hue));
+  --app-fg-subtle: oklch(63% 0.014 var(--app-hue));
+  --app-accent: oklch(70% calc(var(--app-chroma) * 0.79) var(--app-hue));
+  --app-accent-hover: oklch(76% calc(var(--app-chroma) * 0.79) var(--app-hue));
+  --app-accent-fg: oklch(19% calc(var(--app-chroma) * 0.16) var(--app-hue));
+  --app-accent-soft: oklch(30% calc(var(--app-chroma) * 0.26) var(--app-hue));
   --app-shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 8px 24px oklch(0% 0 0 / 0.25);
 }
 
@@ -153,6 +161,6 @@ body {
 }
 
 dialog::backdrop {
-  background: oklch(20% 0.02 265 / 0.45);
+  background: oklch(20% 0.02 var(--app-hue) / 0.45);
   backdrop-filter: blur(2px);
 }
