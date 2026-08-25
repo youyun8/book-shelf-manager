@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Env, SessionUser } from './env.d';
 import {
+  consumePasswordReset,
+  createPasswordReset,
   clearFailures,
   clearedCookie,
   createSession,
@@ -13,10 +15,12 @@ import {
   passwordProblem,
   readSessionCookie,
   recordFailure,
+  RESET_MINUTES,
   sessionCookie,
   userForToken,
   verifyPassword,
 } from './auth';
+import { sendResetEmail } from './mail';
 import {
   createBook,
   deleteBook,
@@ -141,6 +145,71 @@ app.post('/api/auth/login', async (context) => {
   const token = await createSession(context.env, user.id);
   context.header('Set-Cookie', sessionCookie(token, isSecure(context.req.raw)));
   return context.json({ user: { email: user.email } });
+});
+
+/**
+ * Starts a password reset. The reply never says whether the address has an
+ * account, so the form cannot be used to find out who is registered.
+ */
+app.post('/api/auth/forgot', async (context) => {
+  const body = await context.req.json<Credentials>().catch((): Credentials => ({}));
+  const email = normalizeEmail(body.email ?? '');
+  const generic = { message: '如果這個 Email 有帳號，重設連結已經寄出，請查看信箱。' };
+
+  if (!isValidEmail(email)) return context.json({ error: '請輸入有效的 Email。' }, 400);
+  if (await isThrottled(context.env, `reset:${email}`)) {
+    return context.json({ error: '嘗試次數過多，請 15 分鐘後再試。' }, 429);
+  }
+  await recordFailure(context.env, `reset:${email}`);
+
+  const user = await context.env.DB.prepare('SELECT id FROM users WHERE email = ?')
+    .bind(email)
+    .first<{ id: string }>();
+  if (!user) return context.json(generic);
+
+  const token = await createPasswordReset(context.env, user.id);
+  const link = new URL(context.req.url);
+  link.pathname = '/';
+  link.search = `?reset=${token}`;
+
+  try {
+    const outcome = await sendResetEmail(context.env, {
+      to: email,
+      link: link.toString(),
+      minutes: RESET_MINUTES,
+    });
+    if (outcome === 'not-configured') {
+      return context.json({
+        message: '這個網站還沒有設定寄信服務，重設連結已寫入 Worker 記錄檔，請聯絡管理者。',
+      });
+    }
+  } catch (cause) {
+    console.error('[password-reset] send failed', cause);
+    return context.json({ error: '寄送重設信件失敗，請稍後再試或聯絡管理者。' }, 502);
+  }
+  return context.json(generic);
+});
+
+/** Finishes a password reset. Every existing session of that account is ended. */
+app.post('/api/auth/reset', async (context) => {
+  const body = await context.req
+    .json<{ token?: string; password?: string }>()
+    .catch(() => ({}) as { token?: string; password?: string });
+  const token = (body.token ?? '').trim();
+  const password = body.password ?? '';
+
+  if (token === '') return context.json({ error: '重設連結不完整。' }, 400);
+  const problem = passwordProblem(password);
+  if (problem) return context.json({ error: problem }, 400);
+
+  const result = await consumePasswordReset(context.env, token, password);
+  if (!result) {
+    return context.json({ error: '這個重設連結已經失效，請重新申請一次。' }, 400);
+  }
+
+  await clearFailures(context.env, result.email);
+  await clearFailures(context.env, `reset:${result.email}`);
+  return context.json({ email: result.email });
 });
 
 app.post('/api/auth/logout', async (context) => {

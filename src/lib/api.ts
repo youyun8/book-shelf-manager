@@ -50,6 +50,13 @@ export const api = {
 
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
 
+  /** Asks for a reset link. The reply never reveals whether the account exists. */
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/api/auth/forgot', jsonBody({ email })),
+
+  resetPassword: (token: string, password: string) =>
+    request<{ email: string }>('/api/auth/reset', jsonBody({ token, password })),
+
   listBooks: () => request<{ books: Book[] }>('/api/books'),
 
   createBook: (book: Omit<Book, 'id'>) => request<{ book: Book }>('/api/books', jsonBody(book)),
