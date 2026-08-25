@@ -1,65 +1,220 @@
 # 藏書庫存管理 Book Shelf Manager
 
-用勾選條件與關鍵字，從 Excel 書單中快速找出你的庫存書籍。
-整個網站是純前端的靜態網頁，可以免費部署在 GitHub Pages 上。
+多人共用的藏書庫存網站：登入後大家看到、編輯的都是**同一份書單**，
+可以用勾選條件與關鍵字快速找出庫存書籍。未登入者看不到任何書籍資料。
 
-- 讀取 Excel（`.xlsx`）或 CSV，欄位對應自動判斷
-- 勾選篩選：**出版社、年齡層、分類標籤、購入管道、書況**
-- 關鍵字輸入：**書名、作者、繪者**
-- 卡片檢視 / 表格檢視、排序、書籍詳細資料
-- 點任一本書會跳出詳細視窗，自動抓取**書封圖片與線上書籍資料**，並附誠品／博客來／Amazon 搜尋連結
-- 匯出目前篩選結果為 CSV（可直接用 Excel 開啟）
-- 支援手機、平板、電腦，並自動跟隨系統的淺色／深色模式
-- 資料只在瀏覽器中解析，不會上傳到任何伺服器
+- 帳號登入（Email + 密碼），只有**允許名單**中的 Email 才能註冊
+- 忘記密碼可自助重設：寄出一次性連結，重設後所有裝置自動登出
+- 書單存在雲端，任何裝置登入後看到的都是同一份最新資料
+- 兩種更新方式：**上傳 Excel 取代整份書單**，或在網頁上**逐本新增／編輯／刪除**
+- 勾選篩選：出版社、年齡層、分類標籤、購入管道、書況
+- 關鍵字輸入：書名、作者、繪者
+- 卡片／表格檢視、排序、匯出目前結果為 CSV
+- 書籍詳細視窗會顯示封面與線上書目，可把封面存進共用書單
+- 支援手機、平板、電腦，自動跟隨系統的淺色／深色模式
+
+## 架構
+
+```
+瀏覽器 ──────► Cloudflare Worker（同一個網域）
+                 ├─ 靜態網頁（React 單頁應用程式）
+                 ├─ /api/auth/*   註冊、登入、登出、忘記密碼、目前身分
+                 └─ /api/books/*  共用書單的讀取與編輯（需登入）
+                        │
+                        ├─ D1（SQLite）  帳號、工作階段、書籍資料
+                        └─ R2            上傳過的 Excel 原始檔備份
+```
+
+未登入時，`/api/books` 一律回 401，網頁只會顯示登入畫面，
+瀏覽器拿不到任何書籍資料。
+
+| 項目     | 技術                                        |
+| -------- | ------------------------------------------- |
+| 前端     | React 19、TypeScript、Tailwind CSS v4、Vite |
+| 後端     | Cloudflare Workers、Hono                    |
+| 資料庫   | Cloudflare D1（SQLite）                     |
+| 檔案儲存 | Cloudflare R2                               |
+| 登入     | Email + 密碼，PBKDF2 雜湊、HttpOnly Cookie  |
+| 測試     | Vitest                                      |
 
 ---
 
 ## 目錄
 
-1. [快速開始](#快速開始)
-2. [Excel 欄位規格](#excel-欄位規格)
-3. [網頁操作說明](#網頁操作說明)
-   - [書籍詳細視窗與線上資料](#書籍詳細視窗與線上資料)
-4. [更新書單的三種方式](#更新書單的三種方式)
-5. [GitHub 部署詳細步驟](#github-部署詳細步驟)
-6. [自訂網域](#自訂網域)
-7. [隱私與資料公開範圍](#隱私與資料公開範圍)
+1. [部署到 Cloudflare（詳細步驟）](#部署到-cloudflare詳細步驟)
+2. [帳號管理](#帳號管理)
+3. [本機開發](#本機開發)
+4. [Excel 欄位規格](#excel-欄位規格)
+5. [網頁操作說明](#網頁操作說明)
+6. [書封與線上書目](#書封與線上書目)
+7. [安全性說明](#安全性說明)
 8. [疑難排解](#疑難排解)
-9. [專案結構](#專案結構)
-10. [開發指令](#開發指令)
+9. [專案結構與指令](#專案結構與指令)
 
 ---
 
-## 快速開始
+## 部署到 Cloudflare（詳細步驟）
 
-需求：[Node.js](https://nodejs.org/) 22 以上、Git、GitHub 帳號。
+需求：[Node.js](https://nodejs.org/) 22 以上、Git、一個 Cloudflare 帳號（免費方案即可）。
+
+### 步驟 1：取得程式碼並安裝
 
 ```bash
 git clone https://github.com/<你的帳號>/book-shelf-manager.git
 cd book-shelf-manager
 npm ci
+```
+
+### 步驟 2：登入 Cloudflare
+
+```bash
+npx wrangler login      # 會開啟瀏覽器，登入後按「Allow」
+npx wrangler whoami     # 確認登入成功
+```
+
+### 步驟 3：建立資料庫與檔案儲存空間
+
+```bash
+npx wrangler d1 create book-shelf-manager
+```
+
+指令會印出一段設定，其中有一行 `database_id = "xxxxxxxx-..."`，**把這個 id 複製起來**。
+
+```bash
+npx wrangler r2 bucket create book-shelf-uploads
+```
+
+> 第一次使用 R2 需要先在 Cloudflare 後台 **R2 → 啟用**（免費額度很充足）。
+> 如果不想啟用 R2，可以把 `wrangler.jsonc` 中的 `r2_buckets` 整段刪掉，
+> 功能不受影響，只是上傳的 Excel 原始檔不會被備份。
+
+### 步驟 4：填入 database_id
+
+打開 `wrangler.jsonc`，把這一行換成步驟 3 拿到的 id：
+
+```jsonc
+"database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+```
+
+### 步驟 5：建立資料表
+
+```bash
+npm run db:migrate
+```
+
+### 步驟 6：部署
+
+```bash
+npm run deploy
+```
+
+完成後會印出網址，形如 `https://book-shelf-manager.<你的帳號>.workers.dev`。
+
+### 步驟 7：把自己加進允許名單
+
+**這一步很重要**：沒有列在名單上的 Email 無法註冊，也就看不到任何資料。
+
+```bash
+npm run db:allow -- 你的信箱@example.com
+```
+
+要加入家人或同事，就多執行幾次：
+
+```bash
+npm run db:allow -- 家人的信箱@example.com
+```
+
+### 步驟 8：註冊並上傳書單
+
+1. 打開步驟 6 的網址。
+2. 點「註冊」，用剛剛加入名單的 Email 設定密碼（至少 10 個字元）。
+3. 登入後點右上角「上傳 Excel」，選擇你的書單檔案。
+4. 確認提示後，書單就會出現，其他人登入也會看到同一份。
+
+### 步驟 9（選用）：設定忘記密碼的寄信服務
+
+不設定也能用，只是「忘記密碼」寄不出信（重設連結會寫進 Worker 記錄檔，
+可用 `npx wrangler tail` 查看後手動傳給對方）。要讓它自動寄信：
+
+1. 到 [Resend](https://resend.com/) 註冊（免費方案每天 100 封）。
+2. **Domains** 新增並驗證你的網域；若只是先試用可以跳過這步，
+   但寄件人必須維持 `onboarding@resend.dev`，而且只能寄到你註冊 Resend 的那個信箱。
+3. **API Keys** 建立一把金鑰，存成 Worker 密鑰：
+
+   ```bash
+   npx wrangler secret put RESEND_API_KEY
+   # 貼上金鑰後按 Enter
+   ```
+
+4. 驗證好網域的話，把 `wrangler.jsonc` 的 `MAIL_FROM` 改成自己的寄件地址：
+
+   ```jsonc
+   "vars": { "MAIL_FROM": "藏書庫存管理 <books@你的網域>" }
+   ```
+
+5. 重新部署 `npm run deploy`，然後在登入畫面點「忘記密碼？」測試一次。
+
+### 步驟 10（選用）：設定 GitHub 自動部署
+
+設定後，只要推到 `main` 就會自動測試、套用資料庫更新並重新部署。
+
+1. 到 Cloudflare 後台 → **My Profile → API Tokens → Create Token**，
+   選 **Edit Cloudflare Workers** 範本，建立後複製權杖。
+2. 在 Cloudflare 後台首頁右側複製 **Account ID**。
+3. 回到 GitHub repository → **Settings → Secrets and variables → Actions → New repository secret**，
+   新增兩個：
+   - `CLOUDFLARE_API_TOKEN`：步驟 1 的權杖
+   - `CLOUDFLARE_ACCOUNT_ID`：步驟 2 的 Account ID
+4. 之後推送到 `main` 即會自動部署（`.github/workflows/deploy.yml`）。
+
+### 步驟 11（選用）：自訂網域
+
+在 Cloudflare 後台 **Workers & Pages → book-shelf-manager → Settings → Domains & Routes**
+新增自己的網域即可，不需要改程式。
+
+---
+
+## 帳號管理
+
+| 需求               | 做法                                                                                                                                                                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 允許新的人註冊     | `npm run db:allow -- someone@example.com`                                                                                                                                                                                                      |
+| 查看允許名單       | `npx wrangler d1 execute book-shelf-manager --remote --command "SELECT email FROM allowed_emails"`                                                                                                                                             |
+| 移除某人的註冊資格 | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM allowed_emails WHERE email='someone@x.com'"`                                                                                                                       |
+| 停用已註冊的帳號   | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM users WHERE email='someone@x.com'"`（連同工作階段一起消失）                                                                                                        |
+| 忘記密碼           | 在登入畫面點「忘記密碼？」輸入 Email，系統會寄出一次性重設連結（60 分鐘內有效、只能用一次，重設後該帳號的所有裝置都會登出）。沒設定寄信服務時連結會寫進 Worker 記錄檔（`npx wrangler tail`）；真的不行也可以用上一列指令刪除帳號讓對方重新註冊 |
+| 強制所有人重新登入 | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM sessions"`                                                                                                                                                         |
+
+登入狀態會保留 30 天，之後需要重新登入。
+
+---
+
+## 本機開發
+
+需要兩個終端機視窗：
+
+```bash
+npm run db:migrate:local   # 只需第一次
+npm run db:allow -- 你的信箱@example.com --local
+
+# 終端機 1：API（Worker + D1 + R2 的本機模擬）
+npm run dev:api
+
+# 終端機 2：網頁（會自動把 /api 轉送到終端機 1）
 npm run dev
 ```
 
-瀏覽器開啟 `http://localhost:5173`，就會看到示範書單。
-把自己的 Excel 覆蓋到 `public/data/books.xlsx`，重新整理即可看到自己的藏書。
-
-想要一份空白範本：
+打開 `http://localhost:5173`。若想測試和線上完全一樣的組合，用：
 
 ```bash
-npm run data:template   # 產生 public/data/template.xlsx
+npm run build && npm run preview
 ```
-
-網頁右上角的「Excel 範本」按鈕也可以直接下載這份範本。
 
 ---
 
 ## Excel 欄位規格
 
-程式會讀取檔案中的**第一個工作表**，並自動尋找標題列（前 10 列中，最先符合兩個以上已知欄位名稱的那一列），
-所以標題列上方有標題文字或空白列都沒關係。
-
-### 欄位對應表
+上傳時會讀取檔案中的**第一個工作表**，並自動尋找標題列（前 10 列中最先符合兩個以上欄位名稱的那一列）。
 
 | 網頁上的用途     | Excel 欄位名稱（任一種寫法都可以）             | 說明                                        |
 | ---------------- | ---------------------------------------------- | ------------------------------------------- |
@@ -75,18 +230,20 @@ npm run data:template   # 產生 public/data/template.xlsx
 | 購入價格         | `購入價格`、`價格`、`售價`、`定價`             | 可排序                                      |
 | 書況             | `書況`、`狀態`、`書籍狀態`                     | 勾選篩選，例如 收藏／待售／待共讀           |
 | 藏書位置         | `藏書位置`、`存放位置`、`書櫃位置`、`位置`     | 顯示於卡片與表格                            |
-| ISBN（選填）     | `ISBN`、`ISBN13`、`條碼`                       | 有填的話線上查詢會完全命中，建議填          |
+| ISBN（選填）     | `ISBN`、`ISBN13`、`條碼`                       | 有填的話封面查詢會完全命中，建議填          |
 | 封面連結（選填） | `封面連結`、`封面`、`書封`、`圖片`、`cover`    | 填了就用這張圖，不再使用線上查到的封面      |
 
-其他自訂欄位（例如 `備註`、`借給誰`）不會被丟掉，會出現在書籍詳細資料視窗中。
+其他自訂欄位（例如 `備註`、`借給誰`）不會被丟掉，會出現在書籍詳細視窗中。
+
+需要空白範本時執行 `npm run data:template`，或直接點網頁右上角的「範本」。
 
 ### 填寫細節
 
 - **欄位名稱可以加括號說明**：`狀態(收藏/待售/待共讀)` 會被視為 `狀態`。
 - **多個標籤**用 `、`、`,`、`/`、`;` 分隔皆可，例如 `療癒、美感、夢想`。
-- **價格**可以填數字或 `NT$1,200 元` 這類文字，程式只取其中的數字；空白代表未填。
-- **年齡**維持你原本的寫法即可（`0-4 歲`、`4-10 歲`），程式會依開頭數字排序。
+- **價格**可以填數字或 `NT$1,200 元`，程式只取其中的數字；空白代表未填。
 - 欄位順序可以任意調換，也可以只填其中幾欄。
+- 若檔案裡有兩欄意思重疊（例如同時有「狀態」和「書況」），程式會挑**實際有填資料的那一欄**當作篩選依據，另一欄會保留在書籍詳細視窗中。
 
 ---
 
@@ -98,213 +255,127 @@ npm run data:template   # 產生 public/data/template.xlsx
 | 條件邏輯     | 同一組條件之間是「或」，不同組條件之間是「且」                             |
 | 選項後的數字 | 勾選這個條件後會剩下幾本書（已把其他條件算進去）                           |
 | 上方條件列   | 顯示目前生效的條件，點一下即可移除；「全部清除」一次歸零                   |
-| 檢視切換     | 右上角可切換卡片／表格；點任一本書可看完整簡介與所有欄位                   |
-| 匯出結果     | 「匯出結果」會把目前畫面上的書匯出成 CSV（含 BOM，Excel 開啟不會亂碼）     |
-| 分享網址     | 篩選條件會寫進網址列，複製網址就能分享或加入書籤                           |
+| 新增書籍     | 右上角「新增書籍」，填完儲存後所有人都看得到                               |
+| 編輯／刪除   | 點任一本書 →「編輯」，可修改所有欄位或刪除                                 |
+| 上傳 Excel   | 右上角「上傳 Excel」或把檔案拖進網頁，**會用整份檔案取代目前的共用書單**   |
+| 匯出         | 「匯出」把目前篩選結果存成 CSV（含 BOM，Excel 開啟不會亂碼）               |
+| 分享網址     | 篩選條件會寫進網址列，複製給同樣有帳號的人即可看到相同的篩選結果           |
 | 手機         | 上方「篩選」按鈕會叫出篩選抽屜                                             |
 
-也可以直接把 Excel 檔**拖曳**到網頁上載入。
+> 上傳 Excel 會取代整份共用書單，動作前會跳出確認視窗。
+> 原始檔案會備份到 R2，若不小心覆蓋掉，可以在 Cloudflare 後台的 R2 找回先前上傳的檔案。
 
-### 書籍詳細視窗與線上資料
+---
 
-點卡片或表格中的任一本書，會跳出詳細視窗，除了 Excel 裡的所有欄位之外，還會顯示：
+## 書封與線上書目
 
-- **書封圖片**：優先使用 Excel 的「封面連結」欄；沒有的話自動從 Google Books 取得。
-- **線上書籍資料**：出版社、出版日期、頁數、ISBN、書籍介紹，以及「在 Google Books 查看」連結。
-- **書店搜尋連結**：誠品線上、博客來、Amazon，用 ISBN（沒有則用書名＋作者）直接帶到搜尋結果頁。
+點任一本書會跳出詳細視窗，除了 Excel 的欄位之外還會顯示：
 
-查詢方式與注意事項：
+- **書封圖片**：優先用「封面連結」欄，其次是 Google Books 查到的圖，再其次是 Open Library（用 ISBN，免金鑰）。
+- **線上書籍資料**：出版社、出版日期、頁數、ISBN、書籍介紹與 Google Books 連結。
+- **書店搜尋連結**：誠品線上、博客來、Amazon。
 
-- 查詢順序是 `ISBN` →「書名＋作者」→「書名」，並會比對書名／作者，避免抓到不相干的書；比對不過就顯示「找不到這本書」，不會亂配。
-- 查詢結果會在瀏覽器快取 7 天，重複點同一本書不會重新查詢。
-- 查不到或查詢失敗時，Excel 裡的資料照常顯示，只是少了封面與線上欄位；可以用書店連結自己搜尋。
-- 繁體中文繪本在 Google Books 的收錄並不完整，**在 Excel 填上 ISBN 命中率會明顯提高**；真的查不到時，可以自己在「封面連結」欄貼一張圖片網址。
+查詢順序是 `ISBN` →「書名＋作者」→「書名」，並會比對書名／作者，避免抓到不相干的書。
+查到封面後可以按「**把這張封面存進書單**」，之後所有人開啟這本書都會直接看到這張封面，
+不需要再查詢一次（Google Books 無金鑰時的配額是依 IP 計算，行動網路容易額度不足）。
+
+如果希望即時查詢更穩定，可在建置時提供 Google Books API 金鑰：
+
+```bash
+VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
+```
+
+金鑰會被打包進公開的網頁檔案，請在 Google Cloud Console 設定 HTTP 參照網址限制。
 
 > **為什麼不是直接嵌入誠品或 Amazon 的頁面？**
-> 這兩個網站都以 `X-Frame-Options` 禁止被其他網站用 iframe 嵌入，也不開放跨網域讀取資料，純靜態網站無法繞過（要繞過必須自架代理伺服器去抓取他人網站內容）。因此改用官方開放、允許跨網域查詢的 Google Books API 取得封面與書目，再以連結導向各書店。
+> 這兩個網站都以 `X-Frame-Options` 禁止被其他網站用 iframe 嵌入，也不開放跨網域讀取資料。
+> 因此改用官方開放、允許跨網域查詢的 Google Books API 取得封面與書目，再以連結導向各書店。
 
 ---
 
-## 更新書單的三種方式
+## 安全性說明
 
-1. **臨時查看（不需部署）**：點右上角「載入 Excel」或把檔案拖進網頁。資料只留在這次瀏覽中，重新整理就會回到網站內建的書單。
-2. **更新網站書單（建議）**：把 `public/data/books.xlsx` 換成新的檔案，commit 後推上 GitHub，Actions 會自動重新部署。
-3. **改用 CSV**：如果想讓 Git 記錄每次書單的差異，可以把書單存成 `books.csv`，用「載入 Excel」按鈕讀取（副檔名 `.csv` 也支援）。
-
----
-
-## GitHub 部署詳細步驟
-
-以下步驟會把網站部署到 `https://<你的帳號>.github.io/<專案名稱>/`，完全免費。
-
-### 步驟 1：把專案放到你的 GitHub
-
-**方式 A：這個專案已經在你的 GitHub 上**（最常見）— 直接跳到步驟 2。
-
-**方式 B：從本機建立新的 repository**
-
-```bash
-cd book-shelf-manager
-git init                     # 若尚未是 git 專案
-git add .
-git commit -m "Add book shelf manager"
-git branch -M main
-git remote add origin https://github.com/<你的帳號>/book-shelf-manager.git
-git push -u origin main
-```
-
-> 部署工作流程監聽的是 `main` 分支。如果你的預設分支叫 `master`，
-> 請把 `.github/workflows/deploy.yml` 中的 `branches: [main]` 改成 `[master]`。
-
-### 步驟 2：放入自己的書單
-
-```bash
-# 用自己的 Excel 覆蓋示範資料
-cp ~/Downloads/我的藏書.xlsx public/data/books.xlsx
-
-git add public/data/books.xlsx
-git commit -m "Update book list"
-git push
-```
-
-檔名必須是 `books.xlsx`，位置必須是 `public/data/`。
-
-### 步驟 3：開啟 GitHub Pages（只需做一次）
-
-1. 打開瀏覽器，進入你的 repository 頁面。
-2. 點上方的 **Settings**（設定）。
-3. 左側選單找到 **Pages**。
-4. 在 **Build and deployment → Source** 下拉選單中選 **GitHub Actions**。
-   （**不要**選 "Deploy from a branch"。）
-5. 這一頁不需要按儲存，選好即生效。
-
-### 步驟 4：執行第一次部署
-
-推送到 `main` 就會自動觸發。如果剛剛才開啟 Pages、想立刻重跑一次：
-
-1. 回到 repository 頁面，點上方 **Actions**。
-2. 左側選 **Deploy to GitHub Pages**。
-3. 右側點 **Run workflow** → 選 `main` → **Run workflow**。
-
-工作流程會依序執行：安裝套件 → `npm run lint` → `npm test` → `npm run build` → 上傳並部署。
-兩個工作（`build`、`deploy`）都出現綠色勾勾就完成了，通常約 1～2 分鐘。
-
-### 步驟 5：確認網站網址
-
-- **Actions** 頁面點進該次執行，`deploy` 工作下方會顯示網址。
-- 或回到 **Settings → Pages**，最上方會顯示
-  `Your site is live at https://<你的帳號>.github.io/book-shelf-manager/`。
-
-第一次部署後，網址可能需要 1～2 分鐘才會生效；若看到 404，稍等一下再重新整理。
-
-### 步驟 6：日後更新
-
-以後只要把新的 `books.xlsx` 推上去，網站就會自動更新：
-
-```bash
-cp ~/Downloads/我的藏書.xlsx public/data/books.xlsx
-git add public/data/books.xlsx
-git commit -m "Update book list"
-git push
-```
-
-在 **Actions** 頁面可以看到部署進度。更新後若畫面沒變，請強制重新整理
-（Windows：`Ctrl` + `F5`，Mac：`Cmd` + `Shift` + `R`）。
-
-### 部署設定說明
-
-`.github/workflows/deploy.yml` 已經處理好 GitHub Pages 的路徑問題：
-
-| 情況                                    | 網站根目錄             | 自動採用的 base        |
-| --------------------------------------- | ---------------------- | ---------------------- |
-| 一般專案 repo（`book-shelf-manager`）   | `/book-shelf-manager/` | `/book-shelf-manager/` |
-| 個人網站 repo（`<你的帳號>.github.io`） | `/`                    | `/`                    |
-| 有自訂網域（存在 `public/CNAME`）       | `/`                    | `/`                    |
-
-不需要手動修改設定；如果要在本機模擬子路徑，可以執行 `VITE_BASE=/book-shelf-manager/ npm run build`。
-
----
-
-## 自訂網域
-
-1. 在網域商把 `CNAME` 指向 `<你的帳號>.github.io`。
-2. 在專案中建立 `public/CNAME`，內容只有一行你的網域，例如 `books.example.com`。
-3. Commit、push，工作流程會自動改用根目錄路徑部署。
-4. 到 **Settings → Pages → Custom domain** 填入同一個網域並勾選 **Enforce HTTPS**。
-
----
-
-## 隱私與資料公開範圍
-
-- 書單本身只在瀏覽器中解析，不會上傳到任何伺服器；但打開單本書的詳細視窗時，會把**書名（或 ISBN）**送到 Google Books API 查詢封面與書目資料。
-- GitHub Pages 部署出來的網站是**公開**的，任何拿到網址的人都能看到 `public/data/books.xlsx` 的內容。
-- 公開 repository 的原始檔案（包含書單）本來就可以被任何人下載。
-- 若書單包含不想公開的資訊（例如購入價格），可以：
-  - 把 repository 設為 **Private**（GitHub Pages 對私有 repo 需要付費方案），或
-  - 不要把 `books.xlsx` 放進專案（在 `.gitignore` 中加入 `public/data/books.xlsx`），
-    每次使用時用右上角「載入 Excel」讀取本機檔案。此時網站只是一個工具，資料留在你的電腦上。
+- 書籍 API 一律需要有效的工作階段，未登入回 401；網頁本身沒有任何預先打包的書籍資料。
+- 密碼以 PBKDF2-SHA256 加隨機鹽雜湊後儲存，資料庫中沒有明碼。
+  迭代次數會跟著雜湊一起存，因此日後調高不會讓既有帳號無法登入。
+  預設 25,000 次是為了配合 Workers **免費方案**每次請求 10ms CPU 的限制；
+  若你使用付費方案（每月 $5，CPU 上限 30 秒），可以把 `worker/auth.ts` 的
+  `PBKDF2_ITERATIONS` 調成 100,000 以上，之後新設定的密碼就會用新的次數。
+- 工作階段 Cookie 為 `HttpOnly`、`SameSite=Lax`，正式網域上會加上 `Secure`，JavaScript 讀不到。
+- 資料庫只存 Cookie 的雜湊值，就算資料庫外洩也無法被拿來冒充登入。
+- 同一個 Email 連續登入失敗 8 次，會被暫停 15 分鐘；忘記密碼的申請套用同樣的次數限制。
+- 重設密碼的連結 60 分鐘後失效、只能使用一次，申請新的連結會讓舊的立刻作廢；資料庫同樣只存連結的雜湊值。重設成功後該帳號的所有登入狀態都會被清除。
+- 「忘記密碼」不論該 Email 有沒有帳號都回覆同一句話，避免被用來探測誰有帳號。
+- 寫入類請求會檢查 `Origin`，阻擋跨站送出的表單。
+- 允許名單與帳號互相獨立：把 Email 從允許名單移除**不會**自動停用已註冊的帳號，
+  需要停用時請一併刪除 `users` 中的該筆資料（見上方帳號管理）。
 
 ---
 
 ## 疑難排解
 
-| 狀況                                    | 原因與解法                                                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 網頁一片空白、主控台出現 404 找不到 js  | Pages 的 Source 沒有設成 **GitHub Actions**，或是用了 "Deploy from a branch"。回到步驟 3 重設。  |
-| 網站顯示「無法載入書單」                | `public/data/books.xlsx` 不存在或檔名不符。確認檔名與路徑後重新 push。                           |
-| 顯示「找不到標題列」                    | 第一個工作表的前 10 列沒有 `書名`、`作者` 之類的欄位名稱。請確認標題列存在且沒有被合併儲存格。   |
-| 篩選欄少了某一組條件                    | 該欄位在 Excel 中全部是空白，或欄位名稱不在對應表中。改用對應表中的名稱即可。                    |
-| 標籤沒有被拆開                          | 標籤之間請用 `、`、`,`、`/`、`;` 分隔，不要只用空白。                                            |
-| Actions 失敗在 `npm run lint` 或 `test` | 點進失敗的步驟看訊息；在本機執行 `npm run lint`、`npm test` 可以重現。                           |
-| Actions 失敗並顯示 Pages 相關權限錯誤   | 確認 **Settings → Actions → General → Workflow permissions** 允許工作流程執行，且步驟 3 已完成。 |
-| 更新後網頁還是舊的                      | 瀏覽器快取。強制重新整理（`Ctrl`/`Cmd` + `Shift` + `R`）。                                       |
-| 詳細視窗沒有封面、顯示找不到這本書      | Google Books 沒有收錄該書。在 Excel 填 `ISBN` 可大幅提高命中率，或用 `封面連結` 欄自訂圖片。     |
-| 顯示「查詢次數過多，請稍後再試」        | 短時間查詢太多次觸發 Google Books 限制，稍等幾分鐘再按「重新查詢」即可。                         |
+| 狀況                                 | 原因與解法                                                                                                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 註冊時顯示「不在允許名單中」         | 執行 `npm run db:allow -- 該信箱`，注意大小寫不影響、前後不要有空白。                                                                                                      |
+| 部署時說找不到 D1 資料庫             | `wrangler.jsonc` 的 `database_id` 還沒填，或填錯。重新執行 `npx wrangler d1 create book-shelf-manager` 取得。                                                              |
+| 網頁打得開但一直轉圈、主控台出現 500 | 資料表還沒建立。執行 `npm run db:migrate`。                                                                                                                                |
+| 登入出現 `Error 1102`（CPU 超時）    | Workers 免費方案的限制。把 `worker/auth.ts` 的 `PBKDF2_ITERATIONS` 調低，或升級付費方案。                                                                                  |
+| 上傳 Excel 顯示「找不到標題列」      | 第一個工作表的前 10 列沒有 `書名`、`作者` 之類的欄位名稱，或標題列被合併儲存格。                                                                                           |
+| 篩選欄少了某一組條件                 | 該欄位在 Excel 中全部是空白，或欄位名稱不在對應表中。                                                                                                                      |
+| 詳細視窗顯示「查詢額度已用完」       | Google Books 免金鑰配額依 IP 計算。查到封面後按「把這張封面存進書單」即可一勞永逸，或設定 API 金鑰。                                                                       |
+| 忘記密碼沒收到信                     | 還沒設定 `RESEND_API_KEY`（連結會寫進 `npx wrangler tail` 的記錄），或 Resend 網域尚未驗證。未驗證時寄件人只能是 `onboarding@resend.dev`，且只能寄給你註冊 Resend 的信箱。 |
+| 重設連結顯示「已經失效」             | 連結超過 60 分鐘、已經用過，或後來又申請了新的連結（舊的會立刻作廢）。重新申請一次即可。                                                                                   |
+| 想看之前上傳過的 Excel               | Cloudflare 後台 → R2 → `book-shelf-uploads` → `imports/` 資料夾。                                                                                                          |
+| GitHub Actions 部署失敗              | 確認 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ACCOUNT_ID` 兩個 secret 都有設定，且權杖有 Workers 編輯權限。                                                                   |
 
 ---
 
-## 專案結構
+## 專案結構與指令
 
 ```
 .
 ├─ .github/workflows/
-│  ├─ ci.yml               # Pull request 檢查：lint、格式、測試、build
-│  └─ deploy.yml           # 推到 main 時自動部署到 GitHub Pages
-├─ public/
-│  ├─ data/books.xlsx      # 網站顯示的書單（換成自己的）
-│  ├─ data/template.xlsx   # 空白欄位範本
-│  └─ favicon.svg
+│  ├─ ci.yml               # Pull request 檢查
+│  └─ deploy.yml           # 推到 main 時部署到 Cloudflare
+├─ migrations/
+│  ├─ 0001_init.sql        # D1 資料表
+│  └─ 0002_password_resets.sql
+├─ worker/                 # Cloudflare Worker（API）
+│  ├─ index.ts             # 路由與權限
+│  ├─ auth.ts              # 密碼雜湊、工作階段、允許名單、登入限制、重設連結
+│  ├─ mail.ts              # 透過 Resend 寄出重設信件
+│  └─ books.ts             # 書籍資料的讀寫與欄位淨化
+├─ public/data/template.xlsx  # 空白欄位範本
 ├─ scripts/
-│  ├─ make-template.mjs    # 產生範本與示範資料
+│  ├─ allow-email.mjs      # 加入允許名單
+│  ├─ make-template.mjs    # 產生範本
 │  └─ xlsx-writer.mjs      # 最小化的 .xlsx 產生器
-├─ src/
-│  ├─ components/          # 版面與 UI 元件
-│  ├─ hooks/               # useBookInfo：詳細視窗的線上查詢
+├─ src/                    # 前端
+│  ├─ components/          # 版面與 UI 元件（含登入畫面、書籍編輯）
+│  ├─ hooks/               # useSession、useBookInfo
 │  ├─ lib/
+│  │  ├─ api.ts            # 呼叫 Worker API
 │  │  ├─ columns.ts        # Excel 欄位名稱對應
-│  │  ├─ parse.ts          # xlsx / csv 讀取與轉換
-│  │  ├─ filter.ts         # 篩選與排序邏輯
+│  │  ├─ parse.ts          # 表格列轉換成書籍資料
+│  │  ├─ read-spreadsheet.ts # 瀏覽器端讀取 xlsx / csv
+│  │  ├─ filter.ts         # 篩選與排序
 │  │  ├─ facets.ts         # 勾選選項與數量統計
-│  │  ├─ book-info.ts      # Google Books 查詢、封面挑選與書店連結
-│  │  ├─ url-state.ts      # 篩選條件與網址同步
+│  │  ├─ book-info.ts      # Google Books 查詢與書店連結
 │  │  └─ export-csv.ts     # 匯出結果
-│  ├─ App.tsx
-│  ├─ index.css            # 設計樣式與色彩變數
-│  └─ types.ts
-└─ vite.config.ts
+│  └─ App.tsx              # 登入與書單的切換
+└─ wrangler.jsonc          # Worker、D1、R2 設定
 ```
 
-## 開發指令
-
-| 指令                    | 用途                                        |
-| ----------------------- | ------------------------------------------- |
-| `npm run dev`           | 本機開發伺服器                              |
-| `npm run build`         | 型別檢查 + 產生 `dist/`                     |
-| `npm run preview`       | 預覽 `dist/` 的產出                         |
-| `npm run lint`          | ESLint                                      |
-| `npm test`              | Vitest 單元測試（欄位對應、篩選、網址狀態） |
-| `npm run format`        | Prettier 格式化                             |
-| `npm run data:template` | 產生 `public/data/template.xlsx`            |
-| `npm run data:sample`   | 重新產生示範用的 `public/data/books.xlsx`   |
-
-技術：Vite 8、React 19、TypeScript、Tailwind CSS v4、read-excel-file、Vitest。
+| 指令                          | 用途                                         |
+| ----------------------------- | -------------------------------------------- |
+| `npm run dev`                 | 前端開發伺服器（需搭配 `dev:api`）           |
+| `npm run dev:api`             | 本機 Worker + D1 + R2                        |
+| `npm run build`               | 型別檢查 + 打包前端                          |
+| `npm run preview`             | 用 Worker 跑打包後的完整網站                 |
+| `npm run deploy`              | 打包並部署到 Cloudflare                      |
+| `npm run db:migrate`          | 對線上資料庫套用 migration                   |
+| `npm run db:migrate:local`    | 對本機資料庫套用 migration                   |
+| `npm run db:allow -- <email>` | 把 Email 加入允許名單（加 `--local` 為本機） |
+| `npm run lint`                | ESLint                                       |
+| `npm test`                    | Vitest 單元測試                              |
+| `npm run data:template`       | 產生 `public/data/template.xlsx`             |
