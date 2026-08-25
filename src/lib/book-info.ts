@@ -12,7 +12,6 @@ export interface ExternalBookInfo {
   pageCount: number | null;
   categories: string[];
   isbn: string;
-  coverUrl: string;
   infoLink: string;
 }
 
@@ -37,14 +36,7 @@ export function setApiKey(key: string): void {
   apiKey = key;
 }
 
-/** Cover by ISBN from Open Library: no key, no quota, and no CORS needed. */
-export function openLibraryCover(isbn: string): string {
-  const normalized = normalizeIsbn(isbn);
-  return normalized === '' ? '' : `${OPEN_LIBRARY_COVER}/${normalized}-L.jpg?default=false`;
-}
-
 const ENDPOINT = 'https://www.googleapis.com/books/v1/volumes';
-const OPEN_LIBRARY_COVER = 'https://covers.openlibrary.org/b/isbn';
 const TIMEOUT_MS = 12_000;
 const CACHE_PREFIX = 'bsm:book-info:v1:';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -61,7 +53,6 @@ interface VolumeInfo {
   categories?: string[];
   language?: string;
   industryIdentifiers?: { type?: string; identifier?: string }[];
-  imageLinks?: Record<string, string>;
   infoLink?: string;
   canonicalVolumeLink?: string;
 }
@@ -104,17 +95,6 @@ export function buildQueries(book: Book): string[] {
   return [...new Set(queries)];
 }
 
-/** Largest available cover, forced to https so the page stays secure. */
-export function pickCover(imageLinks: Record<string, string> | undefined): string {
-  if (!imageLinks) return '';
-  const order = ['extraLarge', 'large', 'medium', 'small', 'thumbnail', 'smallThumbnail'];
-  for (const key of order) {
-    const url = imageLinks[key];
-    if (url) return url.replace(/^http:/, 'https:').replace(/&edge=curl/, '');
-  }
-  return '';
-}
-
 function toInfo(volume: Volume): ExternalBookInfo | null {
   const info = volume.volumeInfo;
   if (!info || !info.title) return null;
@@ -133,7 +113,6 @@ function toInfo(volume: Volume): ExternalBookInfo | null {
     pageCount: typeof info.pageCount === 'number' ? info.pageCount : null,
     categories: info.categories ?? [],
     isbn: isbn13 ?? isbn10 ?? '',
-    coverUrl: pickCover(info.imageLinks),
     infoLink: info.canonicalVolumeLink ?? info.infoLink ?? '',
   };
 }
@@ -166,7 +145,6 @@ export function pickBestVolume(volumes: readonly Volume[], book: Book): External
       })
     )
       score += 20;
-    if (info.coverUrl !== '') score += 5;
     if (info.description !== '') score += 3;
 
     if (!best || score > best.score) best = { info, score };
@@ -271,16 +249,4 @@ export async function lookupBookInfo(
     clearTimeout(timer);
     options.signal?.removeEventListener('abort', onAbort);
   }
-}
-
-/** Search links to the shops people actually buy these books from. */
-export function shopLinks(book: Book): { label: string; url: string }[] {
-  const isbn = normalizeIsbn(book.isbn);
-  const keyword = isbn !== '' ? isbn : [book.title, book.author].filter(Boolean).join(' ');
-  const encoded = encodeURIComponent(keyword);
-  return [
-    { label: '誠品線上', url: `https://www.eslite.com/search?keyword=${encoded}` },
-    { label: '博客來', url: `https://search.books.com.tw/search/query/key/${encoded}` },
-    { label: 'Amazon', url: `https://www.amazon.com/s?k=${encoded}` },
-  ];
 }
