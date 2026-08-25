@@ -1,16 +1,25 @@
-import type { SortKey, ViewMode } from '../types';
+import type { PageSize, SortKey, ViewMode } from '../types';
+import { PAGE_SIZES } from '../types';
 import { cn } from '../lib/cn';
 import { IconFilter, IconGrid, IconList } from './icons';
 
 interface ResultToolbarProps {
   shown: number;
   total: number;
+  /** 1-based range of the current page inside the filtered result. */
+  range: { from: number; to: number };
   sort: SortKey;
   view: ViewMode;
+  pageSize: PageSize;
   activeFilterCount: number;
   onSortChange: (sort: SortKey) => void;
   onViewChange: (view: ViewMode) => void;
+  onPageSizeChange: (pageSize: PageSize) => void;
   onOpenFilters: () => void;
+}
+
+function pageSizeLabel(size: PageSize): string {
+  return size === 'all' ? '全部' : String(size);
 }
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -24,13 +33,17 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 export function ResultToolbar({
   shown,
   total,
+  range,
   sort,
   view,
+  pageSize,
   activeFilterCount,
   onSortChange,
   onViewChange,
+  onPageSizeChange,
   onOpenFilters,
 }: ResultToolbarProps) {
+  const paged = shown > 0 && (range.from !== 1 || range.to !== shown);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -44,6 +57,11 @@ export function ResultToolbar({
           )}
         </button>
         <p className="text-sm text-fg-muted">
+          {paged && (
+            <span className="tabular-nums">
+              第 {range.from}–{range.to} 本，
+            </span>
+          )}
           共 <span className="font-semibold text-fg tabular-nums">{shown}</span> 本
           {shown !== total && <span className="text-fg-subtle">（全部 {total} 本）</span>}
         </p>
@@ -60,6 +78,24 @@ export function ResultToolbar({
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
+          每頁
+          <select
+            value={String(pageSize)}
+            onChange={(event) => {
+              const raw = event.target.value;
+              onPageSizeChange(raw === 'all' ? 'all' : (Number(raw) as PageSize));
+            }}
+            className="field w-auto py-1.5 text-xs"
+          >
+            {PAGE_SIZES.map((size) => (
+              <option key={size} value={String(size)}>
+                {pageSizeLabel(size)}
               </option>
             ))}
           </select>

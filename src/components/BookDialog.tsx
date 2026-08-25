@@ -3,18 +3,16 @@ import type { Book } from '../types';
 import { cn } from '../lib/cn';
 import { conditionClass, formatPrice } from '../lib/badge';
 import { useBookInfo } from '../hooks/useBookInfo';
-import { BookInfoPanel, OnlineRecord } from './BookInfoPanel';
+import { OnlineRecord } from './OnlineRecord';
 import { IconClose, IconPencil } from './icons';
 
 interface BookDialogProps {
   book: Book | null;
   onClose: () => void;
   onEdit: (book: Book) => void;
-  /** Stores a looked-up cover on the shared record. */
-  onSaveCover: (book: Book, coverUrl: string) => void;
 }
 
-export function BookDialog({ book, onClose, onEdit, onSaveCover }: BookDialogProps) {
+export function BookDialog({ book, onClose, onEdit }: BookDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { state, retry } = useBookInfo(book);
 
@@ -86,17 +84,8 @@ export function BookDialog({ book, onClose, onEdit, onSaveCover }: BookDialogPro
             </div>
           </header>
 
-          <div className="flex flex-col gap-6 px-6 py-5 sm:flex-row">
-            <div className="w-full shrink-0 sm:w-44">
-              <BookInfoPanel
-                book={book}
-                state={state}
-                onRetry={retry}
-                onSaveCover={(coverUrl) => onSaveCover(book, coverUrl)}
-              />
-            </div>
-
-            <div className="min-w-0 flex-1 space-y-5">
+          <div className="px-6 py-5">
+            <div className="min-w-0 space-y-5">
               {book.summary && (
                 <section>
                   <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">內容簡介</h3>
@@ -128,7 +117,7 @@ export function BookDialog({ book, onClose, onEdit, onSaveCover }: BookDialogPro
                 ))}
               </dl>
 
-              <OnlineRecord state={state} />
+              <OnlineRecord state={state} onRetry={retry} />
             </div>
           </div>
         </div>

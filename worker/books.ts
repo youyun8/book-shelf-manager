@@ -16,7 +16,6 @@ export interface BookRecord {
   condition: string;
   location: string;
   isbn: string;
-  coverUrl: string;
   extras: Record<string, string>;
 }
 
@@ -35,14 +34,13 @@ interface BookRow {
   condition: string;
   location: string;
   isbn: string;
-  cover_url: string;
   extras: string;
 }
 
 const COLUMNS = `id, position, title, author, illustrator, translator, publisher, summary,
-  age_range, tags, channel, price, condition, location, isbn, cover_url, extras,
+  age_range, tags, channel, price, condition, location, isbn, extras,
   created_at, updated_at, updated_by`;
-const COLUMN_COUNT = 20;
+const COLUMN_COUNT = 19;
 /** D1 allows 100 bound parameters per statement. */
 const ROWS_PER_INSERT = Math.floor(100 / COLUMN_COUNT);
 
@@ -71,7 +69,6 @@ export function rowToBook(row: BookRow): BookRecord {
     condition: row.condition,
     location: row.location,
     isbn: row.isbn,
-    coverUrl: row.cover_url,
     extras: parseJson<Record<string, string>>(row.extras, {}),
   };
 }
@@ -118,7 +115,6 @@ export function sanitizeBook(input: unknown): Omit<BookRecord, 'id'> {
     condition: text(source.condition, 60),
     location: text(source.location, 200),
     isbn: text(source.isbn, 40),
-    coverUrl: text(source.coverUrl, 1000),
     extras,
   };
 }
@@ -160,7 +156,6 @@ function bindValues(
     book.condition,
     book.location,
     book.isbn,
-    book.coverUrl,
     JSON.stringify(book.extras),
     now,
     now,
@@ -197,7 +192,7 @@ export async function updateBook(
   const result = await env.DB.prepare(
     `UPDATE books SET title = ?, author = ?, illustrator = ?, translator = ?, publisher = ?,
        summary = ?, age_range = ?, tags = ?, channel = ?, price = ?, condition = ?, location = ?,
-       isbn = ?, cover_url = ?, extras = ?, updated_at = ?, updated_by = ?
+       isbn = ?, extras = ?, updated_at = ?, updated_by = ?
      WHERE id = ?`,
   )
     .bind(
@@ -214,7 +209,6 @@ export async function updateBook(
       book.condition,
       book.location,
       book.isbn,
-      book.coverUrl,
       JSON.stringify(book.extras),
       Date.now(),
       email,
