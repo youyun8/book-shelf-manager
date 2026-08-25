@@ -26,10 +26,9 @@ const HEADERS = [
 
 const WIDTHS = [22, 14, 14, 12, 14, 46, 12, 22, 14, 10, 10, 14];
 
-// Optional columns: an ISBN makes the online lookup exact, and a cover URL
-// overrides the looked-up image.
-const TEMPLATE_HEADERS = [...HEADERS, 'ISBN', '封面連結'];
-const TEMPLATE_WIDTHS = [...WIDTHS, 16, 24];
+// Optional column: an ISBN makes the online lookup exact.
+const TEMPLATE_HEADERS = [...HEADERS, 'ISBN'];
+const TEMPLATE_WIDTHS = [...WIDTHS, 16];
 
 // Two hint rows so the format of each column is obvious when the file is opened.
 const TEMPLATE_ROWS = [

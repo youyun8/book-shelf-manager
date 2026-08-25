@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Book, FacetKey, SortKey, TextKey, ViewMode } from '../types';
+import type { Book, FacetKey, Filters, PageSize, SortKey, TextKey, ViewMode } from '../types';
 import { EMPTY_FILTERS } from '../types';
 import type { Account } from '../lib/api';
 import { api } from '../lib/api';
 import { applyFilters, countActiveFilters, sortBooks } from '../lib/filter';
 import { buildAllFacets } from '../lib/facets';
+import { pageCount as countPages } from '../lib/pagination';
 import { SpreadsheetError } from '../lib/parse';
 import { readBooksFromFile } from '../lib/read-spreadsheet';
 import { downloadCsv } from '../lib/export-csv';
@@ -17,6 +18,7 @@ import { BookCard } from './BookCard';
 import { BookTable } from './BookTable';
 import { BookDialog } from './BookDialog';
 import { BookEditor } from './BookEditor';
+import { Pagination } from './Pagination';
 import { DropOverlay, ErrorState, LoadingState, NoResultState } from './StateBlocks';
 
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}data/template.xlsx`;
@@ -35,6 +37,8 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   const [filters, setFilters] = useState(initial.filters);
   const [sort, setSort] = useState<SortKey>(initial.sort);
   const [view, setView] = useState<ViewMode>(initial.view);
+  const [pageSize, setPageSize] = useState<PageSize>(initial.pageSize);
+  const [page, setPage] = useState(1);
 
   const [books, setBooks] = useState<Book[]>([]);
   const [status, setStatus] = useState<Status>('loading');
@@ -77,9 +81,9 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
 
   // Keep the address bar in sync so a filtered view can be shared or bookmarked.
   useEffect(() => {
-    const search = stateToSearch({ filters, sort, view });
+    const search = stateToSearch({ filters, sort, view, pageSize });
     window.history.replaceState(null, '', `${window.location.pathname}${search}`);
-  }, [filters, sort, view]);
+  }, [filters, sort, view, pageSize]);
 
   const importFile = useCallback(
     async (file: File) => {
@@ -192,22 +196,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
     [fail],
   );
 
-  /** Stores a looked-up cover on the shared record, so everyone sees it. */
-  const saveCover = useCallback(
-    async (book: Book, coverUrl: string) => {
-      const { id, ...rest } = book;
-      try {
-        const { book: updated } = await api.updateBook(id, { ...rest, coverUrl });
-        setBooks((current) => current.map((item) => (item.id === id ? updated : item)));
-        setSelected(updated);
-        setNotice(`已把封面存入《${updated.title}》。`);
-      } catch (cause) {
-        fail(cause, '儲存封面失敗。');
-      }
-    },
-    [fail],
-  );
-
   const facets = useMemo(() => buildAllFacets(books, filters), [books, filters]);
   const results = useMemo(
     () => sortBooks(applyFilters(books, filters), sort),
@@ -215,25 +203,62 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   );
   const activeCount = countActiveFilters(filters);
 
-  const toggleFacet = useCallback((key: FacetKey, value: string) => {
-    setFilters((current) => {
-      const values = current.facets[key];
-      const next = values.includes(value)
-        ? values.filter((item) => item !== value)
-        : [...values, value];
-      return { ...current, facets: { ...current.facets, [key]: next } };
-    });
+  const pageCount = countPages(results.length, pageSize);
+  // The result can shrink under the current page, for instance when a filter is
+  // added or a book is deleted, so the page is clamped rather than stored back.
+  const currentPage = Math.min(page, pageCount);
+  const from = pageSize === 'all' ? 0 : (currentPage - 1) * pageSize;
+  const pageResults = pageSize === 'all' ? results : results.slice(from, from + pageSize);
+
+  const goToPage = useCallback((next: number) => {
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const clearFacet = useCallback((key: FacetKey) => {
-    setFilters((current) => ({ ...current, facets: { ...current.facets, [key]: [] } }));
+  // Any change to the selection sends the reader back to its first page.
+  const changeFilters = useCallback((next: (current: Filters) => Filters) => {
+    setFilters(next);
+    setPage(1);
   }, []);
 
-  const changeText = useCallback((key: TextKey, value: string) => {
-    setFilters((current) => ({ ...current, text: { ...current.text, [key]: value } }));
+  const toggleFacet = useCallback(
+    (key: FacetKey, value: string) => {
+      changeFilters((current) => {
+        const values = current.facets[key];
+        const next = values.includes(value)
+          ? values.filter((item) => item !== value)
+          : [...values, value];
+        return { ...current, facets: { ...current.facets, [key]: next } };
+      });
+    },
+    [changeFilters],
+  );
+
+  const clearFacet = useCallback(
+    (key: FacetKey) => {
+      changeFilters((current) => ({ ...current, facets: { ...current.facets, [key]: [] } }));
+    },
+    [changeFilters],
+  );
+
+  const changeText = useCallback(
+    (key: TextKey, value: string) => {
+      changeFilters((current) => ({ ...current, text: { ...current.text, [key]: value } }));
+    },
+    [changeFilters],
+  );
+
+  const resetFilters = useCallback(() => changeFilters(() => EMPTY_FILTERS), [changeFilters]);
+
+  const changeSort = useCallback((next: SortKey) => {
+    setSort(next);
+    setPage(1);
   }, []);
 
-  const resetFilters = useCallback(() => setFilters(EMPTY_FILTERS), []);
+  const changePageSize = useCallback((next: PageSize) => {
+    setPageSize(next);
+    setPage(1);
+  }, []);
 
   const renderPanel = (onClose?: () => void) => (
     <FilterPanel
@@ -262,7 +287,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
         onSignOut={() => void onSignOut()}
       />
 
-      <div className="mx-auto flex max-w-[1600px] gap-6 px-4 py-6 sm:px-6">
+      <div className="page-shell flex gap-6 px-4 py-6 sm:px-6">
         <aside className="hidden w-72 shrink-0 lg:block">
           <div className="sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card">
             {renderPanel()}
@@ -273,11 +298,14 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
           <ResultToolbar
             shown={results.length}
             total={books.length}
+            range={{ from: from + 1, to: from + pageResults.length }}
             sort={sort}
             view={view}
+            pageSize={pageSize}
             activeFilterCount={activeCount}
-            onSortChange={setSort}
+            onSortChange={changeSort}
             onViewChange={setView}
+            onPageSizeChange={changePageSize}
             onOpenFilters={() => setDrawerOpen(true)}
           />
 
@@ -318,19 +346,22 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
           {status === 'ready' && books.length > 0 && results.length === 0 && (
             <NoResultState onReset={resetFilters} />
           )}
-          {status === 'ready' &&
-            results.length > 0 &&
-            (view === 'grid' ? (
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {results.map((book) => (
-                  <li key={book.id} className="flex">
-                    <BookCard book={book} onOpen={setSelected} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <BookTable books={results} onOpen={setSelected} />
-            ))}
+          {status === 'ready' && results.length > 0 && (
+            <>
+              {view === 'grid' ? (
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {pageResults.map((book) => (
+                    <li key={book.id} className="flex">
+                      <BookCard book={book} onOpen={setSelected} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <BookTable books={pageResults} onOpen={setSelected} />
+              )}
+              <Pagination page={currentPage} pageCount={pageCount} onPageChange={goToPage} />
+            </>
+          )}
         </main>
       </div>
 
@@ -376,7 +407,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
           setSelected(null);
           setEditing(book);
         }}
-        onSaveCover={(book, coverUrl) => void saveCover(book, coverUrl)}
       />
 
       <BookEditor
@@ -387,8 +417,8 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
         onClose={() => setEditing(undefined)}
       />
 
-      <footer className="mx-auto max-w-[1600px] px-4 pb-8 text-center text-xs text-fg-subtle sm:px-6">
-        共用書單只有登入的成員看得到；點開單本書時，會用書名或 ISBN 向 Google Books 查詢封面。
+      <footer className="page-shell px-4 pb-8 text-center text-xs text-fg-subtle sm:px-6">
+        共用書單只有登入的成員看得到；點開單本書時，會用書名或 ISBN 向 Google Books 查詢書目資料。
       </footer>
     </div>
   );

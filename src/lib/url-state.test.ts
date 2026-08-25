@@ -4,10 +4,12 @@ import { searchToState, stateToSearch } from './url-state';
 
 describe('url state', () => {
   it('is empty when nothing is selected', () => {
-    expect(stateToSearch({ filters: EMPTY_FILTERS, sort: 'default', view: 'grid' })).toBe('');
+    expect(
+      stateToSearch({ filters: EMPTY_FILTERS, sort: 'default', view: 'grid', pageSize: 24 }),
+    ).toBe('');
   });
 
-  it('round-trips filters, sort and view', () => {
+  it('round-trips filters, sort, view and page size', () => {
     const state = {
       filters: {
         facets: {
@@ -19,11 +21,17 @@ describe('url state', () => {
       },
       sort: 'priceDesc' as const,
       view: 'table' as const,
+      pageSize: 96 as const,
     };
     expect(searchToState(stateToSearch(state))).toEqual(state);
   });
 
-  it('ignores unknown sort values', () => {
+  it('keeps a whole-list page size', () => {
+    expect(searchToState('?per=all').pageSize).toBe('all');
+  });
+
+  it('ignores unknown sort and page size values', () => {
     expect(searchToState('?sort=nope').sort).toBe('default');
+    expect(searchToState('?per=7').pageSize).toBe(24);
   });
 });
