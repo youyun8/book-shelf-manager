@@ -256,7 +256,8 @@ export default function App() {
       <BookDialog book={selected} onClose={() => setSelected(null)} />
 
       <footer className="mx-auto max-w-[1600px] px-4 pb-8 text-center text-xs text-fg-subtle sm:px-6">
-        資料只在瀏覽器中讀取，不會上傳到任何伺服器。
+        書單只在你的瀏覽器中讀取，不會上傳到任何伺服器；點開單本書時，會用書名或 ISBN 向 Google
+        Books 查詢封面與書籍資料。
       </footer>
     </div>
   );
