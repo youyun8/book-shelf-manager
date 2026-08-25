@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { Book } from '../types';
 import { cn } from '../lib/cn';
 import { conditionClass, formatPrice } from '../lib/badge';
+import { useBookInfo } from '../hooks/useBookInfo';
+import { BookInfoPanel, OnlineRecord } from './BookInfoPanel';
 import { IconClose } from './icons';
 
 interface BookDialogProps {
@@ -11,6 +13,7 @@ interface BookDialogProps {
 
 export function BookDialog({ book, onClose }: BookDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const { state, retry } = useBookInfo(book);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -29,6 +32,7 @@ export function BookDialog({ book, onClose }: BookDialogProps) {
         { label: '購入管道', value: book.channel },
         { label: '購入價格', value: formatPrice(book.price) },
         { label: '藏書位置', value: book.location },
+        { label: 'ISBN', value: book.isbn },
         ...Object.entries(book.extras).map(([label, value]) => ({ label, value })),
       ].filter((row) => row.value !== '' && row.value !== '—')
     : [];
@@ -40,7 +44,7 @@ export function BookDialog({ book, onClose }: BookDialogProps) {
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose();
       }}
-      className="m-auto w-[min(46rem,92vw)] rounded-2xl border border-line bg-surface p-0 text-fg shadow-card backdrop:bg-black/40"
+      className="m-auto w-[min(54rem,94vw)] rounded-2xl border border-line bg-surface p-0 text-fg shadow-card backdrop:bg-black/40"
     >
       {book && (
         <div className="thin-scroll max-h-[85vh] overflow-y-auto">
@@ -71,37 +75,45 @@ export function BookDialog({ book, onClose }: BookDialogProps) {
             </div>
           </header>
 
-          <div className="space-y-5 px-6 py-5">
-            {book.summary && (
-              <section>
-                <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">內容簡介</h3>
-                <p className="text-sm leading-relaxed whitespace-pre-line text-fg-muted">
-                  {book.summary}
-                </p>
-              </section>
-            )}
+          <div className="flex flex-col gap-6 px-6 py-5 sm:flex-row">
+            <div className="w-full shrink-0 sm:w-44">
+              <BookInfoPanel book={book} state={state} onRetry={retry} />
+            </div>
 
-            {book.tags.length > 0 && (
-              <section>
-                <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">分類標籤</h3>
-                <ul className="flex flex-wrap gap-1.5">
-                  {book.tags.map((tag) => (
-                    <li key={tag} className="chip">
-                      {tag}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+            <div className="min-w-0 flex-1 space-y-5">
+              {book.summary && (
+                <section>
+                  <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">內容簡介</h3>
+                  <p className="text-sm leading-relaxed whitespace-pre-line text-fg-muted">
+                    {book.summary}
+                  </p>
+                </section>
+              )}
 
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-              {rows.map((row) => (
-                <div key={row.label} className="border-b border-line pb-2">
-                  <dt className="text-xs text-fg-subtle">{row.label}</dt>
-                  <dd className="mt-0.5 text-sm text-fg">{row.value}</dd>
-                </div>
-              ))}
-            </dl>
+              {book.tags.length > 0 && (
+                <section>
+                  <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">分類標籤</h3>
+                  <ul className="flex flex-wrap gap-1.5">
+                    {book.tags.map((tag) => (
+                      <li key={tag} className="chip">
+                        {tag}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                {rows.map((row) => (
+                  <div key={row.label} className="border-b border-line pb-2">
+                    <dt className="text-xs text-fg-subtle">{row.label}</dt>
+                    <dd className="mt-0.5 text-sm text-fg">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <OnlineRecord state={state} />
+            </div>
           </div>
         </div>
       )}
