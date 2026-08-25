@@ -17,8 +17,10 @@
     {
       "binding": "DB",
       "database_name": "book-shelf-manager",
-      // Replace with the id printed by `npx wrangler d1 create book-shelf-manager`.
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      // Printed by `npx wrangler d1 create book-shelf-manager`, and listed
+      // again by `npx wrangler d1 list`. Not a secret: reaching the database
+      // still takes the account's API token.
+      "database_id": "c1d21a2d-649d-4630-8588-d8ef382e9898",
       "migrations_dir": "migrations",
     },
   ],
