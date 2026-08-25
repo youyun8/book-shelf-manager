@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Book } from '../types';
 import type { BookInfoState } from '../hooks/useBookInfo';
-import { shopLinks } from '../lib/book-info';
+import { openLibraryCover, shopLinks } from '../lib/book-info';
 import { IconExternal, IconSpinner } from './icons';
 
 interface BookCoverProps {
@@ -9,22 +9,29 @@ interface BookCoverProps {
   state: BookInfoState;
 }
 
-/** The sheet's own cover URL wins; otherwise the looked-up cover is shown. */
+/**
+ * Cover sources in order of trust: the sheet's own URL, the looked-up cover,
+ * then Open Library by ISBN, which needs no key and no quota. Each image that
+ * fails to load moves on to the next one.
+ */
 function BookCover({ book, state }: BookCoverProps) {
   const found = state.status === 'found' ? state.info.coverUrl : '';
-  const source = book.coverUrl || found;
-  // Tracking the failed URL (rather than a boolean) resets the fallback by
-  // itself when the dialog moves to another book.
-  const [failedSource, setFailedSource] = useState('');
+  const candidates = [book.coverUrl, found, openLibraryCover(book.isbn)].filter(
+    (url) => url !== '',
+  );
+  // Tracking failed URLs (rather than a counter) resets by itself when the
+  // dialog moves to another book.
+  const [failed, setFailed] = useState<string[]>([]);
+  const source = candidates.find((url) => !failed.includes(url)) ?? '';
 
-  if (source !== '' && source !== failedSource) {
+  if (source !== '') {
     return (
       <img
         src={source}
         alt={`《${book.title}》封面`}
         loading="lazy"
         referrerPolicy="no-referrer"
-        onError={() => setFailedSource(source)}
+        onError={() => setFailed((current) => [...current, source])}
         className="max-h-64 w-full rounded-lg border border-line bg-surface-muted object-contain shadow-card"
       />
     );
@@ -109,8 +116,8 @@ export function OnlineRecord({ state }: OnlineRecordProps) {
       <section className="rounded-xl border border-dashed border-line p-4">
         <p className="text-xs text-fg-subtle">
           {state.status === 'missing'
-            ? '在 Google Books 上找不到這本書，可用左側的書店連結搜尋。'
-            : '暫時取得不到網路資料，可用左側的書店連結搜尋。'}
+            ? '在 Google Books 上找不到這本書。可用書店連結自行搜尋，或在 Excel 補上「ISBN」欄提高命中率、用「封面連結」欄自訂封面圖片。'
+            : '暫時取得不到網路資料。可用書店連結自行搜尋；若經常發生，建議在電腦上執行 npm run data:covers 先把書封查好。'}
         </p>
       </section>
     );

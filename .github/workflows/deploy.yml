@@ -52,6 +52,10 @@ jobs:
         run: npm run build
         env:
           VITE_BASE: ${{ steps.base.outputs.path }}
+          # Optional: set a GOOGLE_BOOKS_KEY repository secret to raise the
+          # Google Books quota. The key ends up in the published bundle, so
+          # restrict it to this site's domain in the Google Cloud console.
+          VITE_GOOGLE_BOOKS_KEY: ${{ secrets.GOOGLE_BOOKS_KEY }}
 
       - uses: actions/configure-pages@v5
 
