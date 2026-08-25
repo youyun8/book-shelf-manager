@@ -1,5 +1,5 @@
-import type { FacetKey, Filters, SortKey, TextKey, ViewMode } from '../types';
-import { EMPTY_FILTERS, FACET_KEYS, TEXT_KEYS } from '../types';
+import type { FacetKey, Filters, PageSize, SortKey, TextKey, ViewMode } from '../types';
+import { DEFAULT_PAGE_SIZE, EMPTY_FILTERS, FACET_KEYS, PAGE_SIZES, TEXT_KEYS } from '../types';
 
 const FACET_PARAM: Record<FacetKey, string> = {
   publisher: 'pub',
@@ -20,6 +20,13 @@ export interface UrlState {
   filters: Filters;
   sort: SortKey;
   view: ViewMode;
+  pageSize: PageSize;
+}
+
+function parsePageSize(raw: string | null): PageSize {
+  if (raw === null) return DEFAULT_PAGE_SIZE;
+  const parsed: PageSize = raw === 'all' ? 'all' : (Number(raw) as PageSize);
+  return PAGE_SIZES.includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
 }
 
 /** Serializes the current selection so a filtered view can be bookmarked. */
@@ -35,6 +42,7 @@ export function stateToSearch(state: UrlState): string {
   }
   if (state.sort !== 'default') params.set('sort', state.sort);
   if (state.view !== 'grid') params.set('view', state.view);
+  if (state.pageSize !== DEFAULT_PAGE_SIZE) params.set('per', String(state.pageSize));
   const search = params.toString();
   return search === '' ? '' : `?${search}`;
 }
@@ -55,5 +63,6 @@ export function searchToState(search: string): UrlState {
     filters: { facets, text },
     sort: sortParam && SORT_KEYS.includes(sortParam) ? sortParam : 'default',
     view: params.get('view') === 'table' ? 'table' : 'grid',
+    pageSize: parsePageSize(params.get('per')),
   };
 }

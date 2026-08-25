@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import type { Account } from '../lib/api';
 import { IconBooks, IconDownload, IconPlus, IconSpinner, IconUpload } from './icons';
+import { DisplaySettingsMenu } from './DisplaySettingsMenu';
 
 interface AppHeaderProps {
   account: Account;
@@ -29,7 +30,7 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
+      <div className="page-shell flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg">
             <IconBooks className="h-5 w-5" />
@@ -72,6 +73,7 @@ export function AppHeader({
             <IconPlus className="h-4 w-4" />
             <span className="hidden sm:inline">新增書籍</span>
           </button>
+          <DisplaySettingsMenu />
           <button
             type="button"
             className="focus-ring rounded-lg px-2 py-2 text-sm text-fg-subtle transition hover:text-fg"

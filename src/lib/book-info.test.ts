@@ -5,11 +5,8 @@ import {
   lookupBookInfo,
   LookupError,
   normalizeIsbn,
-  openLibraryCover,
   pickBestVolume,
-  pickCover,
   setApiKey,
-  shopLinks,
 } from './book-info';
 
 function book(overrides: Partial<Book> = {}): Book {
@@ -28,7 +25,6 @@ function book(overrides: Partial<Book> = {}): Book {
     condition: '收藏',
     location: '',
     isbn: '',
-    coverUrl: '',
     extras: {},
     ...overrides,
   };
@@ -45,10 +41,6 @@ const VOLUME = {
     pageCount: 32,
     categories: ['Juvenile Fiction'],
     industryIdentifiers: [{ type: 'ISBN_13', identifier: '9789861897271' }],
-    imageLinks: {
-      smallThumbnail: 'http://books.google.com/books/content?id=abc&zoom=5&edge=curl',
-      thumbnail: 'http://books.google.com/books/content?id=abc&zoom=1&edge=curl',
-    },
     canonicalVolumeLink: 'https://books.google.com/books/about?id=abc123',
   },
 };
@@ -96,25 +88,12 @@ describe('buildQueries', () => {
   });
 });
 
-describe('pickCover', () => {
-  it('prefers the largest image and forces https', () => {
-    expect(pickCover(VOLUME.volumeInfo.imageLinks)).toBe(
-      'https://books.google.com/books/content?id=abc&zoom=1',
-    );
-    expect(pickCover({ large: 'http://x/large.jpg', thumbnail: 'http://x/t.jpg' })).toBe(
-      'https://x/large.jpg',
-    );
-    expect(pickCover(undefined)).toBe('');
-  });
-});
-
 describe('pickBestVolume', () => {
   it('picks the volume matching the title and author', () => {
     const info = pickBestVolume([UNRELATED, VOLUME], book());
     expect(info?.id).toBe('abc123');
     expect(info?.publisher).toBe('格林文化');
     expect(info?.isbn).toBe('9789861897271');
-    expect(info?.coverUrl).toContain('https://');
   });
 
   it('rejects results that match neither title, author nor ISBN', () => {
@@ -168,15 +147,6 @@ describe('lookupBookInfo', () => {
   });
 });
 
-describe('openLibraryCover', () => {
-  it('builds an ISBN cover URL that needs no API key', () => {
-    expect(openLibraryCover('978-986-189-727-1')).toBe(
-      'https://covers.openlibrary.org/b/isbn/9789861897271-L.jpg?default=false',
-    );
-    expect(openLibraryCover('')).toBe('');
-  });
-});
-
 describe('setApiKey', () => {
   it('adds the key to the request when one is configured', async () => {
     const { calls } = stubFetch([[VOLUME]]);
@@ -184,16 +154,5 @@ describe('setApiKey', () => {
     await lookupBookInfo(book(), { force: true });
     setApiKey('');
     expect(calls[0]).toContain('key=test-key');
-  });
-});
-
-describe('shopLinks', () => {
-  it('searches by ISBN when there is one, otherwise by title and author', () => {
-    const withIsbn = shopLinks(book({ isbn: '9789861897271' }));
-    expect(withIsbn[0]?.url).toContain('9789861897271');
-    expect(withIsbn.map((link) => link.label)).toEqual(['誠品線上', '博客來', 'Amazon']);
-
-    const withoutIsbn = shopLinks(book());
-    expect(decodeURIComponent(withoutIsbn[1]?.url ?? '')).toContain('小小迷路 克里斯霍頓');
   });
 });

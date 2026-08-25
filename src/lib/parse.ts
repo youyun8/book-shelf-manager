@@ -136,7 +136,6 @@ export function rowsToBooks(rows: readonly Row[]): Book[] {
       condition: cellToText(at(row, fields.condition)),
       location: cellToText(at(row, fields.location)),
       isbn: cellToText(at(row, fields.isbn)),
-      coverUrl: cellToText(at(row, fields.coverUrl)),
       extras: extraValues,
     });
   }
