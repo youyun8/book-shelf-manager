@@ -1,22 +1,29 @@
 import { useRef } from 'react';
-import { IconBooks, IconDownload, IconSpinner, IconUpload } from './icons';
+import type { Account } from '../lib/api';
+import { IconBooks, IconDownload, IconPlus, IconSpinner, IconUpload } from './icons';
 
 interface AppHeaderProps {
-  sourceLabel: string;
-  loading: boolean;
+  account: Account;
+  bookCount: number;
+  busy: boolean;
   canExport: boolean;
   templateUrl: string;
   onPickFile: (file: File) => void;
   onExport: () => void;
+  onCreate: () => void;
+  onSignOut: () => void;
 }
 
 export function AppHeader({
-  sourceLabel,
-  loading,
+  account,
+  bookCount,
+  busy,
   canExport,
   templateUrl,
   onPickFile,
   onExport,
+  onCreate,
+  onSignOut,
 }: AppHeaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -29,14 +36,11 @@ export function AppHeader({
           </span>
           <div className="min-w-0">
             <h1 className="text-base leading-tight font-bold text-fg">藏書庫存管理</h1>
-            <p className="truncate text-xs text-fg-subtle">
-              {loading ? (
-                <span className="inline-flex items-center gap-1">
-                  <IconSpinner className="h-3 w-3" /> 讀取書單中…
-                </span>
-              ) : (
-                sourceLabel
-              )}
+            <p className="flex items-center gap-1.5 truncate text-xs text-fg-subtle">
+              {busy && <IconSpinner className="h-3 w-3" />}
+              <span className="truncate">
+                共用書單 {bookCount} 本 · {account.email}
+              </span>
             </p>
           </div>
         </div>
@@ -45,23 +49,35 @@ export function AppHeader({
           <a
             href={templateUrl}
             download
-            className="btn hidden text-fg-muted sm:inline-flex"
-            title="下載欄位範本，填好後可直接載入"
+            className="btn hidden text-fg-muted lg:inline-flex"
+            title="下載欄位範本"
           >
             <IconDownload className="h-4 w-4" />
-            Excel 範本
+            範本
           </a>
           <button type="button" className="btn" onClick={onExport} disabled={!canExport}>
             <IconDownload className="h-4 w-4" />
-            <span className="hidden sm:inline">匯出結果</span>
+            <span className="hidden sm:inline">匯出</span>
           </button>
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn"
             onClick={() => inputRef.current?.click()}
+            title="上傳 Excel 取代整份共用書單"
           >
             <IconUpload className="h-4 w-4" />
-            載入 Excel
+            <span className="hidden sm:inline">上傳 Excel</span>
+          </button>
+          <button type="button" className="btn btn-primary" onClick={onCreate}>
+            <IconPlus className="h-4 w-4" />
+            <span className="hidden sm:inline">新增書籍</span>
+          </button>
+          <button
+            type="button"
+            className="focus-ring rounded-lg px-2 py-2 text-sm text-fg-subtle transition hover:text-fg"
+            onClick={onSignOut}
+          >
+            登出
           </button>
           <input
             ref={inputRef}
