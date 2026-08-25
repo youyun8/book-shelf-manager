@@ -14,6 +14,7 @@ export type { SessionUser };
 const PBKDF2_ITERATIONS = 25_000;
 const KEY_LENGTH_BITS = 256;
 const SESSION_DAYS = 30;
+export const RESET_MINUTES = 60;
 const SESSION_COOKIE = 'bsm_session';
 const MAX_FAILURES = 8;
 const FAILURE_WINDOW_MS = 15 * 60 * 1000;
@@ -25,6 +26,11 @@ function toBase64(bytes: ArrayBuffer | Uint8Array): string {
   let binary = '';
   for (const byte of view) binary += String.fromCharCode(byte);
   return btoa(binary);
+}
+
+/** Base64url, so the token can sit in a link without escaping. */
+function toBase64Url(bytes: Uint8Array): string {
+  return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function fromBase64(value: string): Uint8Array {
@@ -178,4 +184,56 @@ export async function recordFailure(env: Env, key: string): Promise<void> {
 
 export async function clearFailures(env: Env, key: string): Promise<void> {
   await env.DB.prepare('DELETE FROM login_attempts WHERE key = ?').bind(key).run();
+}
+
+/**
+ * Issues a single-use password reset token. Only its hash is stored, and any
+ * earlier unused token for the same account is dropped so a forwarded old mail
+ * cannot be replayed.
+ */
+export async function createPasswordReset(env: Env, userId: string): Promise<string> {
+  const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+  const now = Date.now();
+  await env.DB.prepare('DELETE FROM password_resets WHERE user_id = ? AND used_at IS NULL')
+    .bind(userId)
+    .run();
+  await env.DB.prepare(
+    'INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+  )
+    .bind(await sha256(token), userId, now, now + RESET_MINUTES * 60 * 1000)
+    .run();
+  return token;
+}
+
+/**
+ * Spends a reset token: sets the new password, marks the token used and signs
+ * every device out, because whoever asked for the reset may have lost a device.
+ */
+export async function consumePasswordReset(
+  env: Env,
+  token: string,
+  password: string,
+): Promise<{ email: string } | null> {
+  const hash = await sha256(token);
+  const row = await env.DB.prepare(
+    `SELECT password_resets.user_id AS user_id, password_resets.expires_at AS expires_at,
+            password_resets.used_at AS used_at, users.email AS email
+     FROM password_resets JOIN users ON users.id = password_resets.user_id
+     WHERE password_resets.token_hash = ?`,
+  )
+    .bind(hash)
+    .first<{ user_id: string; expires_at: number; used_at: number | null; email: string }>();
+
+  if (!row || row.used_at !== null || row.expires_at < Date.now()) return null;
+
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(
+      await hashPassword(password),
+      row.user_id,
+    ),
+    env.DB.prepare('UPDATE password_resets SET used_at = ? WHERE token_hash = ?').bind(now, hash),
+    env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(row.user_id),
+  ]);
+  return { email: row.email };
 }
