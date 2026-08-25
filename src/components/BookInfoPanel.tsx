@@ -54,13 +54,29 @@ interface BookInfoPanelProps {
   book: Book;
   state: BookInfoState;
   onRetry: () => void;
+  onSaveCover: (coverUrl: string) => void;
 }
 
 /** Cover, shop links and the Google Books record for one book. */
-export function BookInfoPanel({ book, state, onRetry }: BookInfoPanelProps) {
+export function BookInfoPanel({ book, state, onRetry, onSaveCover }: BookInfoPanelProps) {
+  // Offer to keep a looked-up cover, so the shared record stops depending on
+  // the API being reachable from whoever opens the book next.
+  const foundCover = state.status === 'found' ? state.info.coverUrl : '';
+  const canSaveCover = foundCover !== '' && book.coverUrl !== foundCover;
+
   return (
     <div className="space-y-3">
       <BookCover book={book} state={state} />
+
+      {canSaveCover && (
+        <button
+          type="button"
+          onClick={() => onSaveCover(foundCover)}
+          className="btn w-full px-2.5 py-1.5 text-xs"
+        >
+          把這張封面存進書單
+        </button>
+      )}
 
       <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-1">
         {shopLinks(book).map((link) => (

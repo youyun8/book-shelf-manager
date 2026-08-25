@@ -92,3 +92,16 @@ export const IconExternal = ({ className }: IconProps) => (
     <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
   </svg>
 );
+
+export const IconPlus = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+export const IconPencil = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+    <path d="m14.5 6.5 3 3" />
+  </svg>
+);
