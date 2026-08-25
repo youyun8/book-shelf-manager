@@ -59,9 +59,15 @@ describe('mapHeaderRow', () => {
     expect(extras.map((extra) => extra.label)).toEqual(['價格']);
   });
 
+  it('maps the optional lookup columns', () => {
+    const { fields } = mapHeaderRow(['書名', 'ISBN', '封面連結']);
+    expect(fields.isbn).toBe(1);
+    expect(fields.coverUrl).toBe(2);
+  });
+
   it('reports unknown columns as extras', () => {
-    const { extras } = mapHeaderRow(['書名', 'ISBN', '備註']);
-    expect(extras.map((extra) => extra.label)).toEqual(['ISBN', '備註']);
+    const { extras } = mapHeaderRow(['書名', '借給誰', '備註']);
+    expect(extras.map((extra) => extra.label)).toEqual(['借給誰', '備註']);
   });
 });
 
@@ -111,9 +117,15 @@ describe('rowsToBooks', () => {
   });
 
   it('keeps unknown columns in extras and skips empty rows', () => {
-    const books = rowsToBooks([[...HEADER, 'ISBN'], [...ROW, '9789861897271'], [], ['', '', '']]);
+    const books = rowsToBooks([
+      [...HEADER, 'ISBN', '備註'],
+      [...ROW, '9789861897271', '朋友推薦'],
+      [],
+      ['', '', ''],
+    ]);
     expect(books).toHaveLength(1);
-    expect(books[0]?.extras).toEqual({ ISBN: '9789861897271' });
+    expect(books[0]?.isbn).toBe('9789861897271');
+    expect(books[0]?.extras).toEqual({ 備註: '朋友推薦' });
   });
 
   it('throws a readable error when the header is missing', () => {
