@@ -4,6 +4,7 @@
 可以用勾選條件與關鍵字快速找出庫存書籍。未登入者看不到任何書籍資料。
 
 - 帳號登入（Email + 密碼），只有**允許名單**中的 Email 才能註冊
+- 忘記密碼可自助重設：寄出一次性連結，重設後所有裝置自動登出
 - 書單存在雲端，任何裝置登入後看到的都是同一份最新資料
 - 兩種更新方式：**上傳 Excel 取代整份書單**，或在網頁上**逐本新增／編輯／刪除**
 - 勾選篩選：出版社、年齡層、分類標籤、購入管道、書況
@@ -17,7 +18,7 @@
 ```
 瀏覽器 ──────► Cloudflare Worker（同一個網域）
                  ├─ 靜態網頁（React 單頁應用程式）
-                 ├─ /api/auth/*   註冊、登入、登出、目前身分
+                 ├─ /api/auth/*   註冊、登入、登出、忘記密碼、目前身分
                  └─ /api/books/*  共用書單的讀取與編輯（需登入）
                         │
                         ├─ D1（SQLite）  帳號、工作階段、書籍資料
@@ -130,7 +131,30 @@ npm run db:allow -- 家人的信箱@example.com
 3. 登入後點右上角「上傳 Excel」，選擇你的書單檔案。
 4. 確認提示後，書單就會出現，其他人登入也會看到同一份。
 
-### 步驟 9（選用）：設定 GitHub 自動部署
+### 步驟 9（選用）：設定忘記密碼的寄信服務
+
+不設定也能用，只是「忘記密碼」寄不出信（重設連結會寫進 Worker 記錄檔，
+可用 `npx wrangler tail` 查看後手動傳給對方）。要讓它自動寄信：
+
+1. 到 [Resend](https://resend.com/) 註冊（免費方案每天 100 封）。
+2. **Domains** 新增並驗證你的網域；若只是先試用可以跳過這步，
+   但寄件人必須維持 `onboarding@resend.dev`，而且只能寄到你註冊 Resend 的那個信箱。
+3. **API Keys** 建立一把金鑰，存成 Worker 密鑰：
+
+   ```bash
+   npx wrangler secret put RESEND_API_KEY
+   # 貼上金鑰後按 Enter
+   ```
+
+4. 驗證好網域的話，把 `wrangler.jsonc` 的 `MAIL_FROM` 改成自己的寄件地址：
+
+   ```jsonc
+   "vars": { "MAIL_FROM": "藏書庫存管理 <books@你的網域>" }
+   ```
+
+5. 重新部署 `npm run deploy`，然後在登入畫面點「忘記密碼？」測試一次。
+
+### 步驟 10（選用）：設定 GitHub 自動部署
 
 設定後，只要推到 `main` 就會自動測試、套用資料庫更新並重新部署。
 
@@ -143,7 +167,7 @@ npm run db:allow -- 家人的信箱@example.com
    - `CLOUDFLARE_ACCOUNT_ID`：步驟 2 的 Account ID
 4. 之後推送到 `main` 即會自動部署（`.github/workflows/deploy.yml`）。
 
-### 步驟 10（選用）：自訂網域
+### 步驟 11（選用）：自訂網域
 
 在 Cloudflare 後台 **Workers & Pages → book-shelf-manager → Settings → Domains & Routes**
 新增自己的網域即可，不需要改程式。
@@ -152,14 +176,14 @@ npm run db:allow -- 家人的信箱@example.com
 
 ## 帳號管理
 
-| 需求               | 做法                                                                                                                                    |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 允許新的人註冊     | `npm run db:allow -- someone@example.com`                                                                                               |
-| 查看允許名單       | `npx wrangler d1 execute book-shelf-manager --remote --command "SELECT email FROM allowed_emails"`                                      |
-| 移除某人的註冊資格 | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM allowed_emails WHERE email='someone@x.com'"`                |
-| 停用已註冊的帳號   | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM users WHERE email='someone@x.com'"`（連同工作階段一起消失） |
-| 忘記密碼           | 目前沒有寄信功能：用上一列指令刪除該帳號，對方就能用同一個 Email 重新註冊（書單資料不受影響）                                           |
-| 強制所有人重新登入 | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM sessions"`                                                  |
+| 需求               | 做法                                                                                                                                                                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 允許新的人註冊     | `npm run db:allow -- someone@example.com`                                                                                                                                                                                                      |
+| 查看允許名單       | `npx wrangler d1 execute book-shelf-manager --remote --command "SELECT email FROM allowed_emails"`                                                                                                                                             |
+| 移除某人的註冊資格 | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM allowed_emails WHERE email='someone@x.com'"`                                                                                                                       |
+| 停用已註冊的帳號   | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM users WHERE email='someone@x.com'"`（連同工作階段一起消失）                                                                                                        |
+| 忘記密碼           | 在登入畫面點「忘記密碼？」輸入 Email，系統會寄出一次性重設連結（60 分鐘內有效、只能用一次，重設後該帳號的所有裝置都會登出）。沒設定寄信服務時連結會寫進 Worker 記錄檔（`npx wrangler tail`）；真的不行也可以用上一列指令刪除帳號讓對方重新註冊 |
+| 強制所有人重新登入 | `npx wrangler d1 execute book-shelf-manager --remote --command "DELETE FROM sessions"`                                                                                                                                                         |
 
 登入狀態會保留 30 天，之後需要重新登入。
 
@@ -279,7 +303,9 @@ VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
   `PBKDF2_ITERATIONS` 調成 100,000 以上，之後新設定的密碼就會用新的次數。
 - 工作階段 Cookie 為 `HttpOnly`、`SameSite=Lax`，正式網域上會加上 `Secure`，JavaScript 讀不到。
 - 資料庫只存 Cookie 的雜湊值，就算資料庫外洩也無法被拿來冒充登入。
-- 同一個 Email 連續登入失敗 8 次，會被暫停 15 分鐘。
+- 同一個 Email 連續登入失敗 8 次，會被暫停 15 分鐘；忘記密碼的申請套用同樣的次數限制。
+- 重設密碼的連結 60 分鐘後失效、只能使用一次，申請新的連結會讓舊的立刻作廢；資料庫同樣只存連結的雜湊值。重設成功後該帳號的所有登入狀態都會被清除。
+- 「忘記密碼」不論該 Email 有沒有帳號都回覆同一句話，避免被用來探測誰有帳號。
 - 寫入類請求會檢查 `Origin`，阻擋跨站送出的表單。
 - 允許名單與帳號互相獨立：把 Email 從允許名單移除**不會**自動停用已註冊的帳號，
   需要停用時請一併刪除 `users` 中的該筆資料（見上方帳號管理）。
@@ -288,17 +314,19 @@ VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
 
 ## 疑難排解
 
-| 狀況                                 | 原因與解法                                                                                                    |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| 註冊時顯示「不在允許名單中」         | 執行 `npm run db:allow -- 該信箱`，注意大小寫不影響、前後不要有空白。                                         |
-| 部署時說找不到 D1 資料庫             | `wrangler.jsonc` 的 `database_id` 還沒填，或填錯。重新執行 `npx wrangler d1 create book-shelf-manager` 取得。 |
-| 網頁打得開但一直轉圈、主控台出現 500 | 資料表還沒建立。執行 `npm run db:migrate`。                                                                   |
-| 登入出現 `Error 1102`（CPU 超時）    | Workers 免費方案的限制。把 `worker/auth.ts` 的 `PBKDF2_ITERATIONS` 調低，或升級付費方案。                     |
-| 上傳 Excel 顯示「找不到標題列」      | 第一個工作表的前 10 列沒有 `書名`、`作者` 之類的欄位名稱，或標題列被合併儲存格。                              |
-| 篩選欄少了某一組條件                 | 該欄位在 Excel 中全部是空白，或欄位名稱不在對應表中。                                                         |
-| 詳細視窗顯示「查詢額度已用完」       | Google Books 免金鑰配額依 IP 計算。查到封面後按「把這張封面存進書單」即可一勞永逸，或設定 API 金鑰。          |
-| 想看之前上傳過的 Excel               | Cloudflare 後台 → R2 → `book-shelf-uploads` → `imports/` 資料夾。                                             |
-| GitHub Actions 部署失敗              | 確認 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ACCOUNT_ID` 兩個 secret 都有設定，且權杖有 Workers 編輯權限。      |
+| 狀況                                 | 原因與解法                                                                                                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 註冊時顯示「不在允許名單中」         | 執行 `npm run db:allow -- 該信箱`，注意大小寫不影響、前後不要有空白。                                                                                                      |
+| 部署時說找不到 D1 資料庫             | `wrangler.jsonc` 的 `database_id` 還沒填，或填錯。重新執行 `npx wrangler d1 create book-shelf-manager` 取得。                                                              |
+| 網頁打得開但一直轉圈、主控台出現 500 | 資料表還沒建立。執行 `npm run db:migrate`。                                                                                                                                |
+| 登入出現 `Error 1102`（CPU 超時）    | Workers 免費方案的限制。把 `worker/auth.ts` 的 `PBKDF2_ITERATIONS` 調低，或升級付費方案。                                                                                  |
+| 上傳 Excel 顯示「找不到標題列」      | 第一個工作表的前 10 列沒有 `書名`、`作者` 之類的欄位名稱，或標題列被合併儲存格。                                                                                           |
+| 篩選欄少了某一組條件                 | 該欄位在 Excel 中全部是空白，或欄位名稱不在對應表中。                                                                                                                      |
+| 詳細視窗顯示「查詢額度已用完」       | Google Books 免金鑰配額依 IP 計算。查到封面後按「把這張封面存進書單」即可一勞永逸，或設定 API 金鑰。                                                                       |
+| 忘記密碼沒收到信                     | 還沒設定 `RESEND_API_KEY`（連結會寫進 `npx wrangler tail` 的記錄），或 Resend 網域尚未驗證。未驗證時寄件人只能是 `onboarding@resend.dev`，且只能寄給你註冊 Resend 的信箱。 |
+| 重設連結顯示「已經失效」             | 連結超過 60 分鐘、已經用過，或後來又申請了新的連結（舊的會立刻作廢）。重新申請一次即可。                                                                                   |
+| 想看之前上傳過的 Excel               | Cloudflare 後台 → R2 → `book-shelf-uploads` → `imports/` 資料夾。                                                                                                          |
+| GitHub Actions 部署失敗              | 確認 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ACCOUNT_ID` 兩個 secret 都有設定，且權杖有 Workers 編輯權限。                                                                   |
 
 ---
 
@@ -310,10 +338,12 @@ VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
 │  ├─ ci.yml               # Pull request 檢查
 │  └─ deploy.yml           # 推到 main 時部署到 Cloudflare
 ├─ migrations/
-│  └─ 0001_init.sql        # D1 資料表
+│  ├─ 0001_init.sql        # D1 資料表
+│  └─ 0002_password_resets.sql
 ├─ worker/                 # Cloudflare Worker（API）
 │  ├─ index.ts             # 路由與權限
-│  ├─ auth.ts              # 密碼雜湊、工作階段、允許名單、登入限制
+│  ├─ auth.ts              # 密碼雜湊、工作階段、允許名單、登入限制、重設連結
+│  ├─ mail.ts              # 透過 Resend 寄出重設信件
 │  └─ books.ts             # 書籍資料的讀寫與欄位淨化
 ├─ public/data/template.xlsx  # 空白欄位範本
 ├─ scripts/
