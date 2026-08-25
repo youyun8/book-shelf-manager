@@ -7,7 +7,8 @@
 - 勾選篩選：**出版社、年齡層、分類標籤、購入管道、書況**
 - 關鍵字輸入：**書名、作者、繪者**
 - 卡片檢視 / 表格檢視、排序、書籍詳細資料
-- 點任一本書會跳出詳細視窗，自動抓取**書封圖片與線上書籍資料**，並附誠品／博客來／Amazon 搜尋連結
+- 點任一本書會跳出詳細視窗，顯示**書封圖片與線上書籍資料**，並附誠品／博客來／Amazon 搜尋連結
+- 書封可事先查好隨網站一起部署（`npm run data:covers`），訪客瀏覽時不需要再呼叫任何 API
 - 匯出目前篩選結果為 CSV（可直接用 Excel 開啟）
 - 支援手機、平板、電腦，並自動跟隨系統的淺色／深色模式
 - 資料只在瀏覽器中解析，不會上傳到任何伺服器
@@ -119,6 +120,55 @@ npm run data:template   # 產生 public/data/template.xlsx
 - 查詢結果會在瀏覽器快取 7 天，重複點同一本書不會重新查詢。
 - 查不到或查詢失敗時，Excel 裡的資料照常顯示，只是少了封面與線上欄位；可以用書店連結自己搜尋。
 - 繁體中文繪本在 Google Books 的收錄並不完整，**在 Excel 填上 ISBN 命中率會明顯提高**；真的查不到時，可以自己在「封面連結」欄貼一張圖片網址。
+
+### 讓封面穩定顯示（重要）
+
+Google Books 在沒有金鑰時是**依 IP 位址計算配額**的。用手機行動網路瀏覽時，整家電信商的用戶
+共用少數幾個對外 IP，很容易一開啟就看到「查詢額度已用完」。加上繁體中文繪本的收錄本來就不完整，
+所以建議依序做以下幾件事，效果由大到小：
+
+**1. 事先把書封查好（最有效，建議一定要做）**
+
+在自己的電腦上執行一次，結果會存成 `public/data/book-info.json` 並跟著網站一起部署：
+
+```bash
+npm run data:covers              # 只查還沒有資料的書
+npm run data:covers -- --force   # 全部重新查一次
+```
+
+之後訪客開啟書籍時**完全不會呼叫 API**，手機、行動網路、國外連線都能穩定看到封面。
+換了新的 `books.xlsx` 之後再執行一次即可（已查過的書會自動略過），然後把
+`book-info.json` 一起 commit：
+
+```bash
+npm run data:covers
+git add public/data/book-info.json
+git commit -m "Update book covers"
+git push
+```
+
+如果執行到一半就遇到配額限制，程式會停下來並保留已查到的部分，稍後或換個網路再跑一次就會接續。
+
+**2. 在 Excel 補上 `ISBN` 欄**
+
+有 ISBN 時查詢會直接命中，而且就算 Google Books 查不到，網站還會自動改用
+[Open Library](https://openlibrary.org/) 的封面圖（不需金鑰、沒有配額限制）。
+
+**3. 查不到的書，用 `封面連結` 欄自己指定**
+
+`npm run data:covers` 執行完會列出查不到的書名，把封面圖片網址貼進 Excel 的「封面連結」欄即可，
+這一欄的優先權最高。
+
+**4. 申請 Google Books API 金鑰（選用）**
+
+若你希望「載入本機 Excel」時的即時查詢也穩定，可以到 Google Cloud Console 啟用 Books API 並建立
+API 金鑰，然後：
+
+- 本機：建立 `.env.local`，內容為 `VITE_GOOGLE_BOOKS_KEY=你的金鑰`
+- GitHub：到 **Settings → Secrets and variables → Actions** 新增 secret `GOOGLE_BOOKS_KEY`，
+  部署工作流程會自動帶入
+- 產生金鑰後請在 Google Cloud Console 加上 **HTTP 參照網址限制**（例如 `youyun8.github.io/*`），
+  因為金鑰會被打包進公開的網頁檔案中
 
 > **為什麼不是直接嵌入誠品或 Amazon 的頁面？**
 > 這兩個網站都以 `X-Frame-Options` 禁止被其他網站用 iframe 嵌入，也不開放跨網域讀取資料，純靜態網站無法繞過（要繞過必須自架代理伺服器去抓取他人網站內容）。因此改用官方開放、允許跨網域查詢的 Google Books API 取得封面與書目，再以連結導向各書店。
@@ -272,9 +322,11 @@ git push
 │  └─ deploy.yml           # 推到 main 時自動部署到 GitHub Pages
 ├─ public/
 │  ├─ data/books.xlsx      # 網站顯示的書單（換成自己的）
+│  ├─ data/book-info.json  # 事先查好的封面與書目（npm run data:covers 產生）
 │  ├─ data/template.xlsx   # 空白欄位範本
 │  └─ favicon.svg
 ├─ scripts/
+│  ├─ fetch-book-info.ts   # 事先查好書封與書目
 │  ├─ make-template.mjs    # 產生範本與示範資料
 │  └─ xlsx-writer.mjs      # 最小化的 .xlsx 產生器
 ├─ src/
@@ -282,7 +334,8 @@ git push
 │  ├─ hooks/               # useBookInfo：詳細視窗的線上查詢
 │  ├─ lib/
 │  │  ├─ columns.ts        # Excel 欄位名稱對應
-│  │  ├─ parse.ts          # xlsx / csv 讀取與轉換
+│  │  ├─ parse.ts          # 表格列轉換成書籍資料
+│  │  ├─ read-spreadsheet.ts # 瀏覽器端讀取 xlsx / csv
 │  │  ├─ filter.ts         # 篩選與排序邏輯
 │  │  ├─ facets.ts         # 勾選選項與數量統計
 │  │  ├─ book-info.ts      # Google Books 查詢、封面挑選與書店連結
