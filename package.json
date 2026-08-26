@@ -16,7 +16,6 @@
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "data:template": "node scripts/make-template.mjs",
     "deploy": "npm run build && wrangler deploy",
     "dev:api": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply book-shelf-manager --local",

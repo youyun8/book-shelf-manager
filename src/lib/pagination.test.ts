@@ -3,9 +3,9 @@ import { pageCount, pageWindow } from './pagination';
 
 describe('pageCount', () => {
   it('rounds up and never drops below one page', () => {
-    expect(pageCount(0, 24)).toBe(1);
-    expect(pageCount(24, 24)).toBe(1);
-    expect(pageCount(25, 24)).toBe(2);
+    expect(pageCount(0, 25)).toBe(1);
+    expect(pageCount(25, 25)).toBe(1);
+    expect(pageCount(26, 25)).toBe(2);
     expect(pageCount(500, 'all')).toBe(1);
   });
 });

@@ -8,7 +8,6 @@ interface AppHeaderProps {
   bookCount: number;
   busy: boolean;
   canExport: boolean;
-  templateUrl: string;
   onPickFile: (file: File) => void;
   onExport: () => void;
   onCreate: () => void;
@@ -20,7 +19,6 @@ export function AppHeader({
   bookCount,
   busy,
   canExport,
-  templateUrl,
   onPickFile,
   onExport,
   onCreate,
@@ -47,15 +45,6 @@ export function AppHeader({
         </div>
 
         <div className="flex items-center gap-2">
-          <a
-            href={templateUrl}
-            download
-            className="btn hidden text-fg-muted lg:inline-flex"
-            title="下載欄位範本"
-          >
-            <IconDownload className="h-4 w-4" />
-            範本
-          </a>
           <button type="button" className="btn" onClick={onExport} disabled={!canExport}>
             <IconDownload className="h-4 w-4" />
             <span className="hidden sm:inline">匯出</span>

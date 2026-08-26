@@ -53,9 +53,9 @@ export type SortKey = 'default' | 'title' | 'priceAsc' | 'priceDesc' | 'publishe
 export type ViewMode = 'grid' | 'table';
 
 /** How many books one page shows; `all` puts the whole result on one page. */
-export type PageSize = 12 | 24 | 48 | 96 | 'all';
-export const PAGE_SIZES: PageSize[] = [12, 24, 48, 96, 'all'];
-export const DEFAULT_PAGE_SIZE: PageSize = 24;
+export type PageSize = 25 | 50 | 75 | 100 | 'all';
+export const PAGE_SIZES: PageSize[] = [25, 50, 75, 100, 'all'];
+export const DEFAULT_PAGE_SIZE: PageSize = 25;
 
 export const EMPTY_FILTERS: Filters = {
   facets: { publisher: [], ageRange: [], tags: [], channel: [], condition: [] },

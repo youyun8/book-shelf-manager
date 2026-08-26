@@ -5,7 +5,7 @@ import { searchToState, stateToSearch } from './url-state';
 describe('url state', () => {
   it('is empty when nothing is selected', () => {
     expect(
-      stateToSearch({ filters: EMPTY_FILTERS, sort: 'default', view: 'grid', pageSize: 24 }),
+      stateToSearch({ filters: EMPTY_FILTERS, sort: 'default', view: 'grid', pageSize: 25 }),
     ).toBe('');
   });
 
@@ -21,7 +21,7 @@ describe('url state', () => {
       },
       sort: 'priceDesc' as const,
       view: 'table' as const,
-      pageSize: 96 as const,
+      pageSize: 100 as const,
     };
     expect(searchToState(stateToSearch(state))).toEqual(state);
   });
@@ -32,6 +32,6 @@ describe('url state', () => {
 
   it('ignores unknown sort and page size values', () => {
     expect(searchToState('?sort=nope').sort).toBe('default');
-    expect(searchToState('?per=7').pageSize).toBe(24);
+    expect(searchToState('?per=7').pageSize).toBe(25);
   });
 });

@@ -8,7 +8,7 @@ import { buildAllFacets } from '../lib/facets';
 import { pageCount as countPages } from '../lib/pagination';
 import { SpreadsheetError } from '../lib/parse';
 import { readBooksFromFile } from '../lib/read-spreadsheet';
-import { downloadCsv } from '../lib/export-csv';
+import { downloadXlsx } from '../lib/export-xlsx';
 import { searchToState, stateToSearch } from '../lib/url-state';
 import { AppHeader } from './AppHeader';
 import { FilterPanel } from './FilterPanel';
@@ -20,8 +20,6 @@ import { BookDialog } from './BookDialog';
 import { BookEditor } from './BookEditor';
 import { Pagination } from './Pagination';
 import { DropOverlay, ErrorState, LoadingState, NoResultState } from './StateBlocks';
-
-const TEMPLATE_URL = `${import.meta.env.BASE_URL}data/template.xlsx`;
 
 type Status = 'loading' | 'ready' | 'error';
 
@@ -280,9 +278,8 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
         bookCount={books.length}
         busy={busy || status === 'loading'}
         canExport={results.length > 0}
-        templateUrl={TEMPLATE_URL}
         onPickFile={(file) => void importFile(file)}
-        onExport={() => downloadCsv(results, '藏書清單.csv')}
+        onExport={() => downloadXlsx(results)}
         onCreate={() => setEditing(null)}
         onSignOut={() => void onSignOut()}
       />
@@ -349,7 +346,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
           {status === 'ready' && results.length > 0 && (
             <>
               {view === 'grid' ? (
-                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                   {pageResults.map((book) => (
                     <li key={book.id} className="flex">
                       <BookCard book={book} onOpen={setSelected} />

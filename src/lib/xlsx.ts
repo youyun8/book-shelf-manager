@@ -1,15 +1,20 @@
-// Minimal .xlsx writer: enough OOXML to produce a single styled sheet without
-// pulling in a spreadsheet library. Used by scripts/make-template.mjs.
-import { zipSync, strToU8 } from 'fflate';
+import { strToU8, zipSync } from 'fflate';
 
-const escapeXml = (value) =>
-  String(value)
+export type SpreadsheetCell = string | number | null | undefined;
+
+const escapeXml = (value: SpreadsheetCell): string =>
+  [...String(value ?? '')]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code === 9 || code === 10 || code === 13 || code >= 32;
+    })
+    .join('')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-const columnName = (index) => {
+function columnName(index: number): string {
   let name = '';
   let value = index;
   do {
@@ -17,7 +22,7 @@ const columnName = (index) => {
     value = Math.floor(value / 26) - 1;
   } while (value >= 0);
   return name;
-};
+}
 
 const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -41,7 +46,6 @@ const WORKBOOK_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
 
-// Two formats: 0 = body text, 1 = bold header on a grey fill.
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
@@ -52,69 +56,56 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
-const workbookXml = (sheetName) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/></sheets>
-</workbook>`;
-
-/**
- * Writes rows to an .xlsx buffer. The first row is styled as a header.
- * Cells are strings or numbers; everything else is written as text.
- */
-export function rowsToXlsx(rows, { sheetName = '書單', columnWidths = [] } = {}) {
-  const strings = [];
-  const stringIndex = new Map();
-  const internString = (value) => {
-    const existing = stringIndex.get(value);
+/** Creates a single-sheet XLSX workbook with a frozen, styled header row. */
+export function rowsToXlsx(
+  rows: readonly (readonly SpreadsheetCell[])[],
+  options: { sheetName?: string; columnWidths?: readonly number[] } = {},
+): Uint8Array {
+  const { sheetName = 'Books', columnWidths = [] } = options;
+  const strings: string[] = [];
+  const stringIndexes = new Map<string, number>();
+  const intern = (value: string): number => {
+    const existing = stringIndexes.get(value);
     if (existing !== undefined) return existing;
     const index = strings.length;
     strings.push(value);
-    stringIndex.set(value, index);
+    stringIndexes.set(value, index);
     return index;
   };
 
   const sheetRows = rows
     .map((row, rowIndex) => {
-      const style = rowIndex === 0 ? 1 : 0;
       const cells = row
         .map((value, columnIndex) => {
           if (value === null || value === undefined || value === '') return '';
           const reference = `${columnName(columnIndex)}${rowIndex + 1}`;
-          if (typeof value === 'number' && Number.isFinite(value)) {
-            return `<c r="${reference}" s="${style}"><v>${value}</v></c>`;
-          }
-          return `<c r="${reference}" s="${style}" t="s"><v>${internString(String(value))}</v></c>`;
+          const style = rowIndex === 0 ? 1 : 0;
+          return typeof value === 'number' && Number.isFinite(value)
+            ? `<c r="${reference}" s="${style}"><v>${value}</v></c>`
+            : `<c r="${reference}" s="${style}" t="s"><v>${intern(String(value))}</v></c>`;
         })
         .join('');
       return `<row r="${rowIndex + 1}">${cells}</row>`;
     })
     .join('');
 
-  const cols =
-    columnWidths.length > 0
-      ? `<cols>${columnWidths
-          .map(
-            (width, index) =>
-              `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`,
-          )
-          .join('')}</cols>`
-      : '';
-
+  const columns = columnWidths.length
+    ? `<cols>${columnWidths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('')}</cols>`
+    : '';
   const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
-${cols}<sheetData>${sheetRows}</sheetData></worksheet>`;
-
+${columns}<sheetData>${sheetRows}</sheetData></worksheet>`;
   const sharedStrings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strings.length}" uniqueCount="${strings.length}">${strings
-    .map((value) => `<si><t xml:space="preserve">${escapeXml(value)}</t></si>`)
-    .join('')}</sst>`;
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strings.length}" uniqueCount="${strings.length}">${strings.map((value) => `<si><t xml:space="preserve">${escapeXml(value)}</t></si>`).join('')}</sst>`;
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
 
   return zipSync(
     {
       '[Content_Types].xml': strToU8(CONTENT_TYPES),
       '_rels/.rels': strToU8(ROOT_RELS),
-      'xl/workbook.xml': strToU8(workbookXml(sheetName)),
+      'xl/workbook.xml': strToU8(workbook),
       'xl/_rels/workbook.xml.rels': strToU8(WORKBOOK_RELS),
       'xl/styles.xml': strToU8(STYLES),
       'xl/sharedStrings.xml': strToU8(sharedStrings),

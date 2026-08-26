@@ -193,9 +193,7 @@ async function fetchVolumes(query: string, signal?: AbortSignal): Promise<Volume
   }
   if (!response.ok) {
     if (response.status === 429) {
-      throw new LookupError(
-        '這個網路的 Google Books 查詢額度已用完（行動網路較常發生）。可稍後再試，或改用 Wi-Fi。',
-      );
+      throw new LookupError('Google Books 暫時無法查詢，請稍後再試。');
     }
     if (response.status === 403)
       throw new LookupError('Google Books 目前拒絕這次查詢，請稍後再試。');
