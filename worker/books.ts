@@ -253,15 +253,15 @@ export async function replaceBooks(
 
 export async function recordImport(
   env: Env,
-  input: { fileName: string; r2Key: string; bookCount: number; email: string },
+  input: { fileName: string; archiveKey: string; bookCount: number; email: string },
 ): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO imports (id, file_name, r2_key, book_count, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO imports (id, file_name, archive_key, book_count, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)',
   )
     .bind(
       crypto.randomUUID(),
       input.fileName,
-      input.r2Key,
+      input.archiveKey,
       input.bookCount,
       Date.now(),
       input.email,
