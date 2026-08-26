@@ -251,7 +251,7 @@ app.delete('/api/books/:id', async (context) => {
 /**
  * Replaces the shared library with the rows of an uploaded spreadsheet. The
  * browser parses the file (it already knows how) and sends both the parsed rows
- * and the original file, which is archived in R2.
+ * and the original file, which is archived in KV.
  */
 app.post('/api/books/import', async (context) => {
   const email = context.get('user').email;
@@ -277,19 +277,20 @@ app.post('/api/books/import', async (context) => {
   const fileName =
     typeof form.get('fileName') === 'string' ? String(form.get('fileName')) : '書單.xlsx';
 
-  let r2Key = '';
+  let archiveKey = '';
   if (file instanceof File && context.env.UPLOADS) {
-    r2Key = `imports/${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}.xlsx`;
-    await context.env.UPLOADS.put(r2Key, await file.arrayBuffer(), {
-      httpMetadata: {
+    archiveKey = `imports/${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}.xlsx`;
+    await context.env.UPLOADS.put(archiveKey, await file.arrayBuffer(), {
+      metadata: {
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        fileName,
+        uploadedBy: email,
       },
-      customMetadata: { fileName, uploadedBy: email },
     });
   }
 
   const count = await replaceBooks(context.env, books, email);
-  await recordImport(context.env, { fileName, r2Key, bookCount: count, email });
+  await recordImport(context.env, { fileName, archiveKey, bookCount: count, email });
   return context.json({ imported: count });
 });
 

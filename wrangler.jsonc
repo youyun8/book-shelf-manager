@@ -31,10 +31,18 @@
     "MAIL_FROM": "藏書庫存管理 <onboarding@resend.dev>",
   },
 
-  "r2_buckets": [
-    {
-      "binding": "UPLOADS",
-      "bucket_name": "book-shelf-uploads",
-    },
-  ],
+  // Archive of the original spreadsheet behind each import. The binding is
+  // optional: without it imports still work, the upload just is not kept.
+  //
+  // To turn it on, run `npx wrangler kv namespace create UPLOADS`, then
+  // uncomment the block below and paste the id it prints. Leaving a
+  // placeholder id here would fail every deploy, so it stays commented until
+  // the namespace really exists.
+  //
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "UPLOADS",
+  //     "id": "PASTE_THE_ID_PRINTED_BY_WRANGLER",
+  //   },
+  // ],
 }
