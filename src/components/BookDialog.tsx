@@ -2,8 +2,6 @@ import { useEffect, useRef } from 'react';
 import type { Book } from '../types';
 import { cn } from '../lib/cn';
 import { conditionClass, formatPrice } from '../lib/badge';
-import { useBookInfo } from '../hooks/useBookInfo';
-import { OnlineRecord } from './OnlineRecord';
 import { IconClose, IconPencil } from './icons';
 
 interface BookDialogProps {
@@ -14,8 +12,6 @@ interface BookDialogProps {
 
 export function BookDialog({ book, onClose, onEdit }: BookDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const { state, retry } = useBookInfo(book);
-
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -116,8 +112,6 @@ export function BookDialog({ book, onClose, onEdit }: BookDialogProps) {
                   </div>
                 ))}
               </dl>
-
-              <OnlineRecord state={state} onRetry={retry} />
             </div>
           </div>
         </div>

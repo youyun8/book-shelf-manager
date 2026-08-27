@@ -10,7 +10,6 @@
 - 勾選篩選：出版社、年齡層、分類標籤、購入管道、書況
 - 關鍵字輸入：書名、作者、繪者
 - 卡片／表格檢視、排序、每頁筆數，匯出目前結果為 Excel
-- 書籍詳細視窗會顯示 Google Books 上的線上書目
 - 顯示設定可自行選擇主題、色調、字級與版面寬度
 - 支援手機、平板、電腦，預設跟隨系統的淺色／深色模式
 
@@ -286,24 +285,6 @@ npm run build && npm run preview
 
 ---
 
-## 線上書目
-
-點任一本書會跳出詳細視窗，除了 Excel 的欄位之外，還會用 Google Books 查詢並顯示
-**出版社、出版日期、頁數、ISBN、書籍介紹與 Google Books 連結**。
-
-查詢順序是 `ISBN` →「書名＋作者」→「書名」，並會比對書名／作者，避免抓到不相干的書。
-查詢結果會在瀏覽器快取一週。網頁不會顯示書籍封面圖片，也不會放書店連結。
-
-如果希望查詢更穩定，可在建置時提供 Google Books API 金鑰：
-
-```bash
-VITE_GOOGLE_BOOKS_KEY=你的金鑰 npm run deploy
-```
-
-金鑰會被打包進公開的網頁檔案，請在 Google Cloud Console 設定 HTTP 參照網址限制。
-
----
-
 ## 備份與還原
 
 D1 是共用書單的唯一資料來源；KV 只封存匯入時的原始檔案，不參與同步。建議使用以下其中一種備份方式：
@@ -390,7 +371,7 @@ npx wrangler d1 execute book-shelf-manager --remote --file "backups/book-shelf-m
 │  └─ allow-email.mjs      # 加入允許名單
 ├─ src/                    # 前端
 │  ├─ components/          # 版面與 UI 元件（含登入畫面、書籍編輯）
-│  ├─ hooks/               # useSession、useBookInfo、useDisplaySettings
+│  ├─ hooks/               # useSession、useDisplaySettings
 │  ├─ lib/
 │  │  ├─ api.ts            # 呼叫 Worker API
 │  │  ├─ columns.ts        # Excel 欄位名稱對應
@@ -398,7 +379,6 @@ npx wrangler d1 execute book-shelf-manager --remote --file "backups/book-shelf-m
 │  │  ├─ read-spreadsheet.ts # 瀏覽器端讀取 xlsx / csv
 │  │  ├─ filter.ts         # 篩選與排序
 │  │  ├─ facets.ts         # 勾選選項與數量統計
-│  │  ├─ book-info.ts      # Google Books 查詢
 │  │  ├─ display-settings.ts # 主題、色調、字級、版面寬度
 │  │  ├─ pagination.ts     # 每頁筆數與分頁按鈕
 │  │  ├─ xlsx.ts           # 建立單一工作表的 XLSX

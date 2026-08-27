@@ -415,7 +415,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
       />
 
       <footer className="page-shell px-4 pb-8 text-center text-xs text-fg-subtle sm:px-6">
-        共用書單只有登入的成員看得到；點開單本書時，會用書名或 ISBN 向 Google Books 查詢書目資料。
+        共用書單只有登入的成員看得到。
       </footer>
     </div>
   );

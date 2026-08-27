@@ -11,10 +11,10 @@ interface BookCardProps {
 
 export function BookCard({ book, onOpen }: BookCardProps) {
   const credits = [
-    book.author && `文 ${book.author}`,
-    book.illustrator && `圖 ${book.illustrator}`,
-    book.translator && `譯 ${book.translator}`,
-  ].filter(Boolean);
+    { label: '文', value: book.author },
+    { label: '圖', value: book.illustrator },
+    { label: '譯', value: book.translator },
+  ].filter((credit) => credit.value !== '');
   const extraTags = book.tags.length - MAX_TAGS;
   const hasFooter = book.price !== null || book.channel !== '' || book.location !== '';
 
@@ -40,7 +40,16 @@ export function BookCard({ book, onOpen }: BookCardProps) {
         )}
       </div>
 
-      {credits.length > 0 && <p className="-mt-1 text-xs text-fg-muted">{credits.join('　')}</p>}
+      {credits.length > 0 && (
+        <dl className="-mt-1 space-y-1 text-xs text-fg-muted">
+          {credits.map((credit) => (
+            <div key={credit.label} className="flex gap-2">
+              <dt className="w-4 shrink-0 text-fg-subtle">{credit.label}</dt>
+              <dd className="min-w-0">{credit.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-subtle">
         {book.publisher && <span className="font-medium text-fg-muted">{book.publisher}</span>}
