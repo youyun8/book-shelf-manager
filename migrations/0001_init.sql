@@ -57,7 +57,8 @@ CREATE TABLE books (
 );
 CREATE INDEX books_position_idx ON books (position);
 
--- One row per uploaded spreadsheet; the file itself is archived in R2.
+-- One row per uploaded spreadsheet; the file itself is archived in Workers KV
+-- (see 0003, which renamed the column that names the archived object).
 CREATE TABLE imports (
   id TEXT PRIMARY KEY,
   file_name TEXT NOT NULL,

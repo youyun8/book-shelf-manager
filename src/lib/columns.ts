@@ -9,7 +9,7 @@ export type ColumnField = Exclude<keyof Book, 'id' | 'extras'>;
  * by exact alias and then by substring, so `狀態(收藏/待售/待共讀)` still maps to
  * `condition` and `書籍內容摘要` still maps to `summary`.
  */
-export const COLUMN_ALIASES: Record<ColumnField, string[]> = {
+const COLUMN_ALIASES: Record<ColumnField, string[]> = {
   title: ['書名', '書籍名稱', '名稱', '書目', 'title', 'name'],
   author: ['作者', '文字', '文', 'author', 'writer'],
   illustrator: ['繪者', '插畫', '插畫者', '繪圖', '圖', 'illustrator'],
@@ -35,12 +35,12 @@ export const COLUMN_ALIASES: Record<ColumnField, string[]> = {
 };
 
 /**
- * Headers that are recognized only so they can be dropped. The shelf no longer
- * shows book images, and older sheets still carry a cover column; claiming it
- * here keeps it out of the detail view's extra rows, and keeps `圖片` from
- * being mistaken for `繪者` by the substring pass.
+ * Headers that are claimed so no field can take them. The shelf no longer shows
+ * book images, and older sheets still carry a cover column; claiming it here
+ * keeps `圖片` from being mistaken for `繪者` by the substring pass. The column
+ * itself still reaches the detail view as an extra, like any other unmapped one.
  */
-export const IGNORED_ALIASES = [
+const IGNORED_ALIASES = [
   '封面連結',
   '封面網址',
   '封面',
@@ -62,9 +62,9 @@ export function normalizeHeader(raw: unknown): string {
     .toLowerCase();
 }
 
-/** Maps a header row to book fields. Unmapped columns are reported separately. */
+/** Maps a header row to book fields, judged on the header text alone. */
 export interface HeaderMap {
-  /** Best guess per field, judged on the header text alone. */
+  /** Best guess per field: the first candidate, in alias order. */
   fields: Partial<Record<ColumnField, number>>;
   /**
    * Every column whose header matches a field, in alias order. Sheets grown
@@ -72,7 +72,6 @@ export interface HeaderMap {
    * and only the data says which one is actually in use.
    */
   candidates: Partial<Record<ColumnField, number[]>>;
-  extras: { index: number; label: string }[];
 }
 
 export function mapHeaderRow(headerRow: readonly unknown[]): HeaderMap {
@@ -120,11 +119,7 @@ export function mapHeaderRow(headerRow: readonly unknown[]): HeaderMap {
     if (first !== undefined) fields[field] = first;
   }
 
-  const extras = headerRow
-    .map((label, index) => ({ index, label: String(label ?? '').trim() }))
-    .filter((column) => column.label !== '' && !taken.has(column.index));
-
-  return { fields, candidates, extras };
+  return { fields, candidates };
 }
 
 /** How many known fields a row looks like it contains. Used to find the header. */

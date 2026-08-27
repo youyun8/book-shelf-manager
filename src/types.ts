@@ -20,7 +20,7 @@ export interface Book {
   condition: string;
   /** `藏書位置` */
   location: string;
-  /** `ISBN`, used to look the book up online. */
+  /** `ISBN`, carried through import and export but not otherwise interpreted. */
   isbn: string;
   /** Columns that do not map to a known field, kept for the detail view. */
   extras: Record<string, string>;

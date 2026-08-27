@@ -66,21 +66,14 @@ describe('mapHeaderRow', () => {
     expect(candidates.price).toEqual([2, 1]);
   });
 
-  it('maps the optional ISBN column and drops cover columns', () => {
-    const { fields, extras } = mapHeaderRow(['書名', 'ISBN', '封面連結']);
+  it('maps the optional ISBN column', () => {
+    const { fields } = mapHeaderRow(['書名', 'ISBN', '封面連結']);
     expect(fields.isbn).toBe(1);
-    expect(extras).toEqual([]);
   });
 
   it('never mistakes a dropped 圖片 column for 繪者', () => {
-    const { fields, extras } = mapHeaderRow(['書名', '圖片']);
+    const { fields } = mapHeaderRow(['書名', '圖片']);
     expect(fields.illustrator).toBeUndefined();
-    expect(extras).toEqual([]);
-  });
-
-  it('reports unknown columns as extras', () => {
-    const { extras } = mapHeaderRow(['書名', '借給誰', '備註']);
-    expect(extras.map((extra) => extra.label)).toEqual(['借給誰', '備註']);
   });
 });
 

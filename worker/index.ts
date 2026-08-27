@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 import type { Env, SessionUser } from './env.d';
 import {
   consumePasswordReset,
@@ -60,20 +61,19 @@ app.use('/api/*', async (context, next) => {
 });
 
 /** Reject anything that is not signed in before it can reach book data. */
-app.use('/api/books/*', async (context, next) => {
+const requireUser: MiddlewareHandler<{ Bindings: Env; Variables: Variables }> = async (
+  context,
+  next,
+) => {
   const token = readSessionCookie(context.req.raw);
   const user = token ? await userForToken(context.env, token) : null;
   if (!user) return context.json({ error: '請先登入。' }, 401);
   context.set('user', user);
   await next();
-});
-app.use('/api/books', async (context, next) => {
-  const token = readSessionCookie(context.req.raw);
-  const user = token ? await userForToken(context.env, token) : null;
-  if (!user) return context.json({ error: '請先登入。' }, 401);
-  context.set('user', user);
-  await next();
-});
+};
+// `/api/books/*` does not match the collection itself, so both are registered.
+app.use('/api/books', requireUser);
+app.use('/api/books/*', requireUser);
 
 app.get('/api/auth/me', async (context) => {
   const token = readSessionCookie(context.req.raw);

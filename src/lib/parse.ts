@@ -8,7 +8,7 @@ const TAG_SEPARATORS = /[、,，/／;；|｜\n\r]+/;
 export type Cell = string | number | boolean | Date | null | undefined;
 export type Row = readonly Cell[];
 
-export function cellToText(cell: Cell): string {
+function cellToText(cell: Cell): string {
   if (cell === null || cell === undefined) return '';
   if (cell instanceof Date) return cell.toISOString().slice(0, 10);
   if (typeof cell === 'number') return Number.isFinite(cell) ? String(cell) : '';

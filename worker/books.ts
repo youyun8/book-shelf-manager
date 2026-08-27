@@ -126,13 +126,6 @@ export async function listBooks(env: Env): Promise<BookRecord[]> {
   return result.results.map(rowToBook);
 }
 
-export async function getBook(env: Env, id: string): Promise<BookRecord | null> {
-  const row = await env.DB.prepare(`SELECT ${COLUMNS} FROM books WHERE id = ?`)
-    .bind(id)
-    .first<BookRow>();
-  return row ? rowToBook(row) : null;
-}
-
 function bindValues(
   id: string,
   position: number,

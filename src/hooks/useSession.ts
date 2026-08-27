@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import type { Account } from '../lib/api';
 
-export type SessionState =
+type SessionState =
   { status: 'loading' } | { status: 'signedOut' } | { status: 'signedIn'; account: Account };
 
 /** Tracks who is signed in. The cookie itself is HttpOnly and never read here. */

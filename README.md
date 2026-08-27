@@ -48,11 +48,10 @@ Excel／CSV 是**匯入格式**，不是裝置間同步的檔案。上傳時，�
 3. [本機開發](#本機開發)
 4. [Excel 欄位規格](#excel-欄位規格)
 5. [網頁操作說明](#網頁操作說明)
-6. [線上書目](#線上書目)
-7. [備份與還原](#備份與還原)
-8. [安全性說明](#安全性說明)
-9. [疑難排解](#疑難排解)
-10. [專案結構與指令](#專案結構與指令)
+6. [備份與還原](#備份與還原)
+7. [安全性說明](#安全性說明)
+8. [疑難排解](#疑難排解)
+9. [專案結構與指令](#專案結構與指令)
 
 ---
 
@@ -248,7 +247,7 @@ npm run build && npm run preview
 | 購入價格     | `購入價格`、`價格`、`售價`、`定價`             | 可排序                                      |
 | 書況         | `書況`、`狀態`、`書籍狀態`                     | 勾選篩選，例如 收藏／待售／待共讀           |
 | 藏書位置     | `藏書位置`、`存放位置`、`書櫃位置`、`位置`     | 顯示於卡片與表格                            |
-| ISBN（選填） | `ISBN`、`ISBN13`、`條碼`                       | 有填的話線上書目會完全命中，建議填          |
+| ISBN（選填） | `ISBN`、`ISBN13`、`條碼`                       | 顯示於詳細資料，匯出時一併帶出              |
 
 其他自訂欄位（例如 `備註`、`借給誰`）不會被丟掉，會出現在書籍詳細視窗中。
 舊檔案裡的 `封面連結`、`圖片` 之類的欄位會被略過：網頁不再顯示書籍圖片。
@@ -361,7 +360,8 @@ npx wrangler d1 execute book-shelf-manager --remote --file "backups/book-shelf-m
 ├─ migrations/
 │  ├─ 0001_init.sql        # D1 資料表
 │  ├─ 0002_password_resets.sql
-│  └─ 0003_kv_archive_key.sql # 匯入紀錄改用 KV 封存鍵
+│  ├─ 0003_kv_archive_key.sql # 匯入紀錄改用 KV 封存鍵
+│  └─ 0004_drop_cover_url.sql # 移除不再使用的封面欄位
 ├─ worker/                 # Cloudflare Worker（API）
 │  ├─ index.ts             # 路由與權限
 │  ├─ auth.ts              # 密碼雜湊、工作階段、允許名單、登入限制、重設連結
@@ -379,10 +379,13 @@ npx wrangler d1 execute book-shelf-manager --remote --file "backups/book-shelf-m
 │  │  ├─ read-spreadsheet.ts # 瀏覽器端讀取 xlsx / csv
 │  │  ├─ filter.ts         # 篩選與排序
 │  │  ├─ facets.ts         # 勾選選項與數量統計
+│  │  ├─ badge.ts          # 書況色塊與價格格式
 │  │  ├─ display-settings.ts # 主題、色調、字級、版面寬度
 │  │  ├─ pagination.ts     # 每頁筆數與分頁按鈕
+│  │  ├─ url-state.ts      # 篩選條件與網址列同步
 │  │  ├─ xlsx.ts           # 建立單一工作表的 XLSX
 │  │  └─ export-xlsx.ts    # 匯出目前結果與自訂欄位
+│  ├─ types.ts             # 書籍與篩選條件的型別
 │  └─ App.tsx              # 登入與書單的切換
 └─ wrangler.jsonc          # Worker、靜態資源、D1、KV 與環境變數設定
 ```

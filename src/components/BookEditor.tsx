@@ -30,7 +30,7 @@ const FIELDS: { key: keyof Draft; label: string; placeholder?: string }[] = [
   { key: 'channel', label: '購入管道' },
   { key: 'condition', label: '書況', placeholder: '例如 收藏 / 待售' },
   { key: 'location', label: '藏書位置' },
-  { key: 'isbn', label: 'ISBN', placeholder: '有填的話線上書目會更準' },
+  { key: 'isbn', label: 'ISBN', placeholder: '例如 9789861897271' },
 ];
 
 function toDraft(book: Book | null): Draft {
