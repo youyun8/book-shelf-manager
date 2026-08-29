@@ -16,7 +16,33 @@ interface ResultToolbarProps {
   onSortChange: (sort: SortOrder) => void;
   onViewChange: (view: ViewMode) => void;
   onPageSizeChange: (pageSize: PageSize) => void;
+  /** Opens the drawer. Narrow screens have no sidebar to bring back. */
   onOpenFilters: () => void;
+  /**
+   * Brings the sidebar back. Passed only while it is collapsed, which is the
+   * only time a wide screen needs a way in to the filters.
+   */
+  onExpandFilters?: () => void;
+}
+
+interface FilterButtonProps {
+  count: number;
+  className: string;
+  onClick: () => void;
+}
+
+function FilterButton({ count, className, onClick }: FilterButtonProps) {
+  return (
+    <button type="button" className={cn('btn', className)} onClick={onClick}>
+      <IconFilter className="h-4 w-4" />
+      篩選
+      {count > 0 && (
+        <span className="ml-0.5 rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">
+          {count}
+        </span>
+      )}
+    </button>
+  );
 }
 
 function pageSizeLabel(size: PageSize): string {
@@ -35,20 +61,20 @@ export function ResultToolbar({
   onViewChange,
   onPageSizeChange,
   onOpenFilters,
+  onExpandFilters,
 }: ResultToolbarProps) {
   const paged = shown > 0 && (range.from !== 1 || range.to !== shown);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <button type="button" className="btn lg:hidden" onClick={onOpenFilters}>
-          <IconFilter className="h-4 w-4" />
-          篩選
-          {activeFilterCount > 0 && (
-            <span className="ml-0.5 rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
+        <FilterButton count={activeFilterCount} className="lg:hidden" onClick={onOpenFilters} />
+        {onExpandFilters && (
+          <FilterButton
+            count={activeFilterCount}
+            className="hidden lg:inline-flex"
+            onClick={onExpandFilters}
+          />
+        )}
         <p className="text-sm text-fg-muted">
           {paged && (
             <span className="tabular-nums">
