@@ -1,4 +1,5 @@
 import type { Book, SortField, SortOrder } from '../types';
+import { FIELD_LABELS } from '../types';
 import { cn } from '../lib/cn';
 import { statusClass, formatPrice } from '../lib/badge';
 import { sortDirectionLabel, sortFieldLabel } from '../lib/sort';
@@ -12,21 +13,25 @@ interface BookTableProps {
   onOpen: (book: Book) => void;
 }
 
-/** Every column is sortable except the tags, which a book can have many of. */
-const COLUMNS: { label: string; field?: SortField }[] = [
-  { label: '書名', field: 'title' },
-  { label: '作者', field: 'author' },
-  { label: '繪者', field: 'illustrator' },
-  { label: '出版社', field: 'publisher' },
-  { label: '適讀年齡', field: 'ageRange' },
-  { label: '共讀方式', field: 'readingMode' },
-  { label: '建議標籤' },
-  { label: '購入管道', field: 'channel' },
-  { label: '價格', field: 'price' },
-  { label: '狀態', field: 'status' },
-  { label: '新舊', field: 'wear' },
-  { label: '書況', field: 'condition' },
-  { label: '藏書位置', field: 'location' },
+/**
+ * The table in the reader's own field order. Every column is sortable except
+ * the tags, which a book can have many of. 譯者, 內容簡介 and 備註 are left to
+ * the detail view, where there is room for their length.
+ */
+const COLUMNS: { field?: SortField; label?: string }[] = [
+  { field: 'title' },
+  { field: 'status' },
+  { field: 'channel' },
+  { field: 'price' },
+  { field: 'wear' },
+  { field: 'condition' },
+  { field: 'location' },
+  { field: 'author' },
+  { field: 'illustrator' },
+  { field: 'publisher' },
+  { field: 'ageRange' },
+  { field: 'readingMode' },
+  { label: FIELD_LABELS.tags },
 ];
 
 export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
@@ -36,7 +41,12 @@ export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
         <thead>
           <tr className="border-b border-line bg-surface-muted text-left">
             {COLUMNS.map((column) => (
-              <SortableHeader key={column.label} column={column} sort={sort} onSortBy={onSortBy} />
+              <SortableHeader
+                key={column.field ?? column.label}
+                column={column}
+                sort={sort}
+                onSortBy={onSortBy}
+              />
             ))}
           </tr>
         </thead>
@@ -57,24 +67,6 @@ export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
               <th scope="row" className="max-w-[260px] px-3 py-2.5 text-left font-medium text-fg">
                 {book.title}
               </th>
-              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.author || '—'}</td>
-              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
-                {book.illustrator || '—'}
-              </td>
-              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
-                {book.publisher || '—'}
-              </td>
-              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
-                {book.ageRange || '—'}
-              </td>
-              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
-                {book.readingMode || '—'}
-              </td>
-              <td className="px-3 py-2.5 text-fg-muted">{book.tags.join('、') || '—'}</td>
-              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.channel || '—'}</td>
-              <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-fg">
-                {formatPrice(book.price)}
-              </td>
               <td className="px-3 py-2.5 whitespace-nowrap">
                 {book.status ? (
                   <span
@@ -89,6 +81,10 @@ export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
                   '—'
                 )}
               </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.channel || '—'}</td>
+              <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-fg">
+                {formatPrice(book.price)}
+              </td>
               <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.wear || '—'}</td>
               <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
                 {book.condition || '—'}
@@ -96,6 +92,20 @@ export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
               <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
                 {book.location || '—'}
               </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.author || '—'}</td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+                {book.illustrator || '—'}
+              </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+                {book.publisher || '—'}
+              </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+                {book.ageRange || '—'}
+              </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+                {book.readingMode || '—'}
+              </td>
+              <td className="px-3 py-2.5 text-fg-muted">{book.tags.join('、') || '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -105,7 +115,7 @@ export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
 }
 
 interface SortableHeaderProps {
-  column: { label: string; field?: SortField };
+  column: { field?: SortField; label?: string };
   sort: SortOrder;
   onSortBy: (field: SortField) => void;
 }
@@ -116,7 +126,8 @@ interface SortableHeaderProps {
  * so a reader can see that the list is by name and then by price.
  */
 function SortableHeader({ column, sort, onSortBy }: SortableHeaderProps) {
-  const { field, label } = column;
+  const { field } = column;
+  const label = field ? FIELD_LABELS[field] : (column.label ?? '');
   const at = field ? sort.findIndex((rule) => rule.field === field) : -1;
   const rule = at === -1 ? undefined : sort[at];
   const ariaSort = rule ? (rule.direction === 'asc' ? 'ascending' : 'descending') : undefined;

@@ -33,7 +33,7 @@ export function FacetSection({ label, options, onToggle, onClear }: FacetSection
   if (options.length === 0) return null;
 
   return (
-    <section className="border-b border-line py-4 last:border-b-0">
+    <section className="rounded-xl border border-line bg-surface p-4 shadow-card">
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -78,7 +78,7 @@ export function FacetSection({ label, options, onToggle, onClear }: FacetSection
             </div>
           )}
 
-          <ul className="thin-scroll max-h-72 space-y-0.5 overflow-y-auto pr-1">
+          <ul className="thin-scroll max-h-96 space-y-0.5 overflow-y-auto pr-1">
             {visible.map((option) => (
               <li key={option.value}>
                 <label

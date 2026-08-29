@@ -6,17 +6,22 @@ const MAX_TAGS = 4;
 
 interface BookCardProps {
   book: Book;
+  /** How many rows share this title, so two near-identical cards make sense. */
+  copies: number;
   onOpen: (book: Book) => void;
 }
 
-export function BookCard({ book, onOpen }: BookCardProps) {
+export function BookCard({ book, copies, onOpen }: BookCardProps) {
   const credits = [
     { label: '文', value: book.author },
     { label: '圖', value: book.illustrator },
     { label: '譯', value: book.translator },
   ].filter((credit) => credit.value !== '');
   const extraTags = book.tags.length - MAX_TAGS;
-  const hasFooter = book.price !== null || book.channel !== '' || book.location !== '';
+  const copyDetails = [book.wear, book.condition && `書況 ${book.condition}`, book.location].filter(
+    (detail): detail is string => Boolean(detail),
+  );
+  const hasFooter = book.price !== null || book.channel !== '' || copyDetails.length > 0;
 
   return (
     <button
@@ -39,6 +44,8 @@ export function BookCard({ book, onOpen }: BookCardProps) {
           </span>
         )}
       </div>
+
+      {copies > 1 && <p className="-mt-1 text-xs text-fg-subtle">同書名共 {copies} 本</p>}
 
       {credits.length > 0 && (
         <dl className="-mt-1 space-y-1 text-xs text-fg-muted">
@@ -83,7 +90,11 @@ export function BookCard({ book, onOpen }: BookCardProps) {
           </span>
           <span className="flex flex-wrap items-center gap-x-2">
             {book.channel && <span>{book.channel}</span>}
-            {book.location && <span className="text-fg-muted">📍 {book.location}</span>}
+            {copyDetails.map((detail) => (
+              <span key={detail} className="text-fg-muted">
+                {detail}
+              </span>
+            ))}
           </span>
         </div>
       )}

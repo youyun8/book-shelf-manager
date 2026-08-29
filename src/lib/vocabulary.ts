@@ -4,7 +4,14 @@
  * worst for a condition, first to last for a stage — so a sort or a filter list
  * can follow that order instead of the alphabet.
  */
-export const STATUS_VALUES = ['收藏', '待共讀', '共讀中', '待售', '絕版待交換'] as const;
+export const STATUS_VALUES = [
+  '收藏',
+  '待售',
+  '待共讀',
+  '共讀中',
+  '絕版待售',
+  '絕版待交換',
+] as const;
 export const WEAR_VALUES = ['近新', '9新', '8新', '7新', '5-6新'] as const;
 export const CONDITION_VALUES = ['無', '點斑', '微斑', '其他'] as const;
 export const READING_MODE_VALUES = ['幼兒啟蒙', '親子共讀', '低中年級'] as const;

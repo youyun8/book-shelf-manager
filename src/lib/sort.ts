@@ -1,5 +1,5 @@
 import type { Book, SortDirection, SortField, SortOrder, SortRule } from '../types';
-import { SORT_FIELDS } from '../types';
+import { FIELD_LABELS, SORT_FIELDS } from '../types';
 import { compareText } from './filter';
 import { CONDITION_VALUES, READING_MODE_VALUES, STATUS_VALUES, WEAR_VALUES } from './vocabulary';
 import { rankOf } from './vocabulary';
@@ -11,7 +11,6 @@ import { rankOf } from './vocabulary';
  * first page with books that have nothing in that column.
  */
 interface FieldSpec {
-  label: string;
   /** How the two directions read for this field, so `新舊` never says `遞增`. */
   directions: Record<SortDirection, string>;
   missing: (book: Book) => boolean;
@@ -23,13 +22,8 @@ const TEXT_DIRECTIONS: Record<SortDirection, string> = { asc: '順序', desc: '�
 const SIZE_DIRECTIONS: Record<SortDirection, string> = { asc: '小到大', desc: '大到小' };
 
 /** A plain text field: empty cells count as missing, the rest use the collator. */
-function textField(
-  label: string,
-  read: (book: Book) => string,
-  directions = TEXT_DIRECTIONS,
-): FieldSpec {
+function textField(read: (book: Book) => string, directions = TEXT_DIRECTIONS): FieldSpec {
   return {
-    label,
     directions,
     missing: (book) => read(book) === '',
     compare: (a, b) => compareText(read(a), read(b)),
@@ -42,13 +36,11 @@ function textField(
  * two unknown values still have a stable order.
  */
 function rankedField(
-  label: string,
   read: (book: Book) => string,
   values: readonly string[],
   directions = TEXT_DIRECTIONS,
 ): FieldSpec {
   return {
-    label,
     directions,
     missing: (book) => read(book) === '',
     compare: (a, b) =>
@@ -63,37 +55,35 @@ export function ageSortKey(label: string): number {
 }
 
 export const SORT_SPECS: Record<SortField, FieldSpec> = {
-  title: textField('書名', (book) => book.title),
-  author: textField('作者', (book) => book.author),
-  illustrator: textField('繪者', (book) => book.illustrator),
-  translator: textField('譯者', (book) => book.translator),
-  publisher: textField('出版社', (book) => book.publisher),
+  title: textField((book) => book.title),
+  status: rankedField((book) => book.status, STATUS_VALUES),
+  channel: textField((book) => book.channel),
+  price: {
+    directions: { asc: '低到高', desc: '高到低' },
+    missing: (book) => book.price === null,
+    compare: (a, b) => (a.price ?? 0) - (b.price ?? 0),
+  },
+  wear: rankedField((book) => book.wear, WEAR_VALUES, { asc: '新到舊', desc: '舊到新' }),
+  condition: rankedField((book) => book.condition, CONDITION_VALUES, {
+    asc: '好到差',
+    desc: '差到好',
+  }),
+  location: textField((book) => book.location),
+  author: textField((book) => book.author),
+  illustrator: textField((book) => book.illustrator),
+  translator: textField((book) => book.translator),
+  publisher: textField((book) => book.publisher),
   ageRange: {
-    label: '適讀年齡',
     directions: SIZE_DIRECTIONS,
     missing: (book) => book.ageRange === '',
     compare: (a, b) =>
       ageSortKey(a.ageRange) - ageSortKey(b.ageRange) || compareText(a.ageRange, b.ageRange),
   },
-  readingMode: rankedField('共讀方式', (book) => book.readingMode, READING_MODE_VALUES),
-  channel: textField('購入管道', (book) => book.channel),
-  price: {
-    label: '價格',
-    directions: { asc: '低到高', desc: '高到低' },
-    missing: (book) => book.price === null,
-    compare: (a, b) => (a.price ?? 0) - (b.price ?? 0),
-  },
-  status: rankedField('狀態', (book) => book.status, STATUS_VALUES),
-  wear: rankedField('新舊', (book) => book.wear, WEAR_VALUES, { asc: '新到舊', desc: '舊到新' }),
-  condition: rankedField('書況', (book) => book.condition, CONDITION_VALUES, {
-    asc: '好到差',
-    desc: '差到好',
-  }),
-  location: textField('藏書位置', (book) => book.location),
+  readingMode: rankedField((book) => book.readingMode, READING_MODE_VALUES),
 };
 
 export function sortFieldLabel(field: SortField): string {
-  return SORT_SPECS[field].label;
+  return FIELD_LABELS[field];
 }
 
 export function sortDirectionLabel(rule: SortRule): string {

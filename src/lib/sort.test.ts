@@ -102,7 +102,7 @@ describe('sortBooks', () => {
 
   it('follows the spreadsheet vocabulary rather than the alphabet', () => {
     const sorted = sortBooks(BOOKS, [{ field: 'status', direction: 'asc' }]);
-    expect(sorted.map((item) => item.status)).toEqual(['收藏', '收藏', '共讀中', '待售']);
+    expect(sorted.map((item) => item.status)).toEqual(['收藏', '收藏', '待售', '共讀中']);
   });
 
   it('does not depend on the order the books arrive in', () => {

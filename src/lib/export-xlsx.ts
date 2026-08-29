@@ -1,34 +1,38 @@
-import type { Book } from '../types';
+import type { Book, FieldKey } from '../types';
+import { FIELD_LABELS } from '../types';
 import { rowsToXlsx, type SpreadsheetCell } from './xlsx';
 
-const COLUMNS: { header: string; value: (book: Book) => SpreadsheetCell }[] = [
-  { header: '書名', value: (book) => book.title },
-  { header: '作者', value: (book) => book.author },
-  { header: '繪者', value: (book) => book.illustrator },
-  { header: '譯者', value: (book) => book.translator },
-  { header: '出版社', value: (book) => book.publisher },
-  { header: '內容簡介', value: (book) => book.summary },
-  { header: '適讀年齡', value: (book) => book.ageRange },
-  { header: '共讀方式', value: (book) => book.readingMode },
-  { header: '建議標籤', value: (book) => book.tags.join('、') },
-  { header: '購入管道', value: (book) => book.channel },
-  { header: '價格', value: (book) => book.price },
-  { header: '狀態', value: (book) => book.status },
-  { header: '新舊', value: (book) => book.wear },
-  { header: '書況', value: (book) => book.condition },
-  { header: '藏書位置', value: (book) => book.location },
-  { header: '備註', value: (book) => book.notes },
-  { header: 'ISBN', value: (book) => book.isbn },
+const COLUMNS: { field: FieldKey; value: (book: Book) => SpreadsheetCell }[] = [
+  { field: 'title', value: (book) => book.title },
+  { field: 'status', value: (book) => book.status },
+  { field: 'channel', value: (book) => book.channel },
+  { field: 'price', value: (book) => book.price },
+  { field: 'wear', value: (book) => book.wear },
+  { field: 'condition', value: (book) => book.condition },
+  { field: 'location', value: (book) => book.location },
+  { field: 'notes', value: (book) => book.notes },
+  { field: 'author', value: (book) => book.author },
+  { field: 'illustrator', value: (book) => book.illustrator },
+  { field: 'translator', value: (book) => book.translator },
+  { field: 'publisher', value: (book) => book.publisher },
+  { field: 'summary', value: (book) => book.summary },
+  { field: 'ageRange', value: (book) => book.ageRange },
+  { field: 'readingMode', value: (book) => book.readingMode },
+  { field: 'tags', value: (book) => book.tags.join('、') },
+  { field: 'isbn', value: (book) => book.isbn },
 ];
 
+/** The header row, which is the source sheet's own order. */
+export const EXPORT_FIELDS = COLUMNS.map((column) => column.field);
+
 /** Columns wide enough to read without resizing: the title and the summary. */
-const WIDE_COLUMNS: Record<number, number> = { 0: 28, 5: 50 };
+const WIDE_COLUMNS: Partial<Record<FieldKey, number>> = { title: 28, summary: 50, notes: 30 };
 
 /** Converts books to rows, preserving every custom spreadsheet column. */
 export function booksToRows(books: readonly Book[]): SpreadsheetCell[][] {
   const extraHeaders = [...new Set(books.flatMap((book) => Object.keys(book.extras)))];
   return [
-    [...COLUMNS.map((column) => column.header), ...extraHeaders],
+    [...COLUMNS.map((column) => FIELD_LABELS[column.field]), ...extraHeaders],
     ...books.map((book) => [
       ...COLUMNS.map((column) => column.value(book)),
       ...extraHeaders.map((header) => book.extras[header] ?? ''),
@@ -38,9 +42,11 @@ export function booksToRows(books: readonly Book[]): SpreadsheetCell[][] {
 
 export function booksToXlsx(books: readonly Book[]): Uint8Array {
   const rows = booksToRows(books);
-  const widths = rows[0]!.map(
-    (header, index) => WIDE_COLUMNS[index] ?? Math.max(12, Math.min(24, String(header).length * 2)),
-  );
+  const widths = rows[0]!.map((header, index) => {
+    const field = COLUMNS[index]?.field;
+    const wide = field === undefined ? undefined : WIDE_COLUMNS[field];
+    return wide ?? Math.max(12, Math.min(24, String(header).length * 2));
+  });
   return rowsToXlsx(rows, { sheetName: 'Books', columnWidths: widths });
 }
 

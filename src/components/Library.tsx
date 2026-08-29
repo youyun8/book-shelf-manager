@@ -12,18 +12,19 @@ import type {
 import { EMPTY_FILTERS } from '../types';
 import type { Account } from '../lib/api';
 import { api } from '../lib/api';
-import { cn } from '../lib/cn';
 import { applyFilters, countActiveFilters } from '../lib/filter';
 import { promoteSortField, sortBooks } from '../lib/sort';
 import { buildAllFacets } from '../lib/facets';
+import { copyCount, countCopiesByTitle, otherCopies } from '../lib/copies';
 import { pageCount as countPages } from '../lib/pagination';
 import { SpreadsheetError } from '../lib/parse';
 import { readBooksFromFile } from '../lib/read-spreadsheet';
 import { downloadXlsx } from '../lib/export-xlsx';
 import { searchToState, stateToSearch } from '../lib/url-state';
-import { readFilterPanelOpen, writeFilterPanelOpen } from '../lib/filter-panel';
+import type { Route } from '../lib/route';
+import { pathToRoute, routeHref } from '../lib/route';
 import { AppHeader } from './AppHeader';
-import { FilterPanel, FilterRail } from './FilterPanel';
+import { FiltersPage } from './FiltersPage';
 import { ActiveFilters } from './ActiveFilters';
 import { ResultToolbar } from './ResultToolbar';
 import { BookCard } from './BookCard';
@@ -57,8 +58,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Book | null>(null);
   const [editing, setEditing] = useState<Book | null | undefined>(undefined);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(readFilterPanelOpen);
+  const [route, setRoute] = useState<Route>(() => pathToRoute(window.location.pathname));
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -90,14 +90,36 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
     void load();
   }, [load]);
 
-  // Whether the sidebar is open is this reader's own, so it is not in the URL.
-  useEffect(() => writeFilterPanelOpen(panelOpen), [panelOpen]);
+  const search = stateToSearch({ filters, sort, view, pageSize });
 
   // Keep the address bar in sync so a filtered view can be shared or bookmarked.
   useEffect(() => {
-    const search = stateToSearch({ filters, sort, view, pageSize });
     window.history.replaceState(null, '', `${window.location.pathname}${search}`);
-  }, [filters, sort, view, pageSize]);
+  }, [search]);
+
+  // Back and forward move between the two pages, and restore what was selected.
+  useEffect(() => {
+    const onPopState = () => {
+      const restored = searchToState(window.location.search);
+      setRoute(pathToRoute(window.location.pathname));
+      setFilters(restored.filters);
+      setSort(restored.sort);
+      setView(restored.view);
+      setPageSize(restored.pageSize);
+      setPage(1);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = useCallback(
+    (next: Route) => {
+      window.history.pushState(null, '', routeHref(next, search));
+      setRoute(next);
+      window.scrollTo({ top: 0 });
+    },
+    [search],
+  );
 
   const importFile = useCallback(
     async (file: File) => {
@@ -211,6 +233,8 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   );
 
   const facets = useMemo(() => buildAllFacets(books, filters), [books, filters]);
+  // Most titles are on the shelf more than once, so every view says how many.
+  const copies = useMemo(() => countCopiesByTitle(books), [books]);
   const results = useMemo(
     () => sortBooks(applyFilters(books, filters), sort),
     [books, filters, sort],
@@ -280,20 +304,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
     setPage(1);
   }, []);
 
-  const renderPanel = (handlers: { onClose?: () => void; onCollapse?: () => void } = {}) => (
-    <FilterPanel
-      filters={filters}
-      facets={facets}
-      activeCount={activeCount}
-      onToggleFacet={toggleFacet}
-      onClearFacet={clearFacet}
-      onChangeText={changeText}
-      onReset={resetFilters}
-      onClose={handlers.onClose}
-      onCollapse={handlers.onCollapse}
-    />
-  );
-
   return (
     <div className="min-h-screen bg-bg">
       <AppHeader
@@ -301,39 +311,31 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
         bookCount={books.length}
         busy={busy || status === 'loading'}
         canExport={results.length > 0}
+        route={route}
+        activeFilterCount={activeCount}
+        search={search}
+        onNavigate={navigate}
         onPickFile={(file) => void importFile(file)}
         onExport={() => downloadXlsx(results)}
         onCreate={() => setEditing(null)}
         onSignOut={() => void onSignOut()}
       />
 
-      <div className="page-shell flex gap-6 px-4 py-6 sm:px-6">
-        {/*
-          The sidebar slides rather than disappearing: its width animates and
-          the panel inside keeps its own, so the text is revealed and covered
-          instead of reflowing on every frame.
-        */}
-        <aside
-          className={cn(
-            'hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block',
-            panelOpen ? 'w-72' : 'w-14',
-          )}
-        >
-          <div
-            className={cn(
-              'sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-card',
-              panelOpen ? 'w-72 p-4' : 'w-14 p-2',
-            )}
-          >
-            {panelOpen ? (
-              renderPanel({ onCollapse: () => setPanelOpen(false) })
-            ) : (
-              <FilterRail activeCount={activeCount} onExpand={() => setPanelOpen(true)} />
-            )}
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 space-y-4">
+      {route === 'filters' ? (
+        <FiltersPage
+          filters={filters}
+          facets={facets}
+          activeCount={activeCount}
+          shown={results.length}
+          total={books.length}
+          onToggleFacet={toggleFacet}
+          onClearFacet={clearFacet}
+          onChangeText={changeText}
+          onReset={resetFilters}
+          onDone={() => navigate('library')}
+        />
+      ) : (
+        <main className="page-shell space-y-4 px-4 py-6 sm:px-6">
           <ResultToolbar
             shown={results.length}
             total={books.length}
@@ -341,11 +343,9 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
             sort={sort}
             view={view}
             pageSize={pageSize}
-            activeFilterCount={activeCount}
             onSortChange={changeSort}
             onViewChange={setView}
             onPageSizeChange={changePageSize}
-            onOpenFilters={() => setDrawerOpen(true)}
           />
 
           <ActiveFilters
@@ -388,10 +388,10 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
           {status === 'ready' && results.length > 0 && (
             <>
               {view === 'grid' ? (
-                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {pageResults.map((book) => (
                     <li key={book.id} className="flex">
-                      <BookCard book={book} onOpen={setSelected} />
+                      <BookCard book={book} copies={copyCount(copies, book)} onOpen={setSelected} />
                     </li>
                   ))}
                 </ul>
@@ -407,27 +407,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
             </>
           )}
         </main>
-      </div>
-
-      {drawerOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button
-            type="button"
-            aria-label="關閉篩選"
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setDrawerOpen(false)}
-          />
-          <div className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col overflow-hidden bg-surface p-4 shadow-card">
-            {renderPanel({ onClose: () => setDrawerOpen(false) })}
-            <button
-              type="button"
-              className="btn btn-primary mt-3 w-full"
-              onClick={() => setDrawerOpen(false)}
-            >
-              查看 {results.length} 筆結果
-            </button>
-          </div>
-        </div>
       )}
 
       <input
@@ -446,6 +425,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
 
       <BookDialog
         book={selected}
+        others={selected ? otherCopies(books, selected) : []}
         onClose={() => setSelected(null)}
         onEdit={(book) => {
           setSelected(null);

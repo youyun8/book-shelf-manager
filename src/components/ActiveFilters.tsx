@@ -1,5 +1,5 @@
 import type { FacetKey, Filters, TextKey } from '../types';
-import { FACET_KEYS, FACET_LABELS, TEXT_KEYS, TEXT_LABELS } from '../types';
+import { FACET_KEYS, FIELD_LABELS, TEXT_KEYS } from '../types';
 import { IconClose } from './icons';
 
 interface ActiveFiltersProps {
@@ -31,7 +31,7 @@ export function ActiveFilters({
           onClick={() => onClearText(key)}
           className="focus-ring inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-fg-muted transition hover:border-line-strong hover:text-fg"
         >
-          <span className="text-fg-subtle">{TEXT_LABELS[key]}：</span>
+          <span className="text-fg-subtle">{FIELD_LABELS[key]}：</span>
           {filters.text[key]}
           <IconClose className="h-3 w-3" />
         </button>
@@ -43,7 +43,7 @@ export function ActiveFilters({
           onClick={() => onRemoveFacet(key, value)}
           className="focus-ring inline-flex items-center gap-1 rounded-full border border-transparent bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent transition hover:brightness-95"
         >
-          <span className="opacity-70">{FACET_LABELS[key]}：</span>
+          <span className="opacity-70">{FIELD_LABELS[key]}：</span>
           {value}
           <IconClose className="h-3 w-3" />
         </button>

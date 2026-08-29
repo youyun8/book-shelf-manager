@@ -11,6 +11,13 @@ export type ColumnField = Exclude<keyof Book, 'id' | 'extras'>;
  */
 const COLUMN_ALIASES: Record<ColumnField, string[]> = {
   title: ['書名', '書籍名稱', '名稱', '書目', 'title', 'name'],
+  status: ['狀態', '書籍狀態', '收藏狀態', '處理方式', 'status'],
+  channel: ['購入管道', '購買管道', '取得管道', '購書管道', '管道', '來源', 'channel', 'source'],
+  price: ['價格', '購入價格', '售價', '定價', '金額', 'price', 'cost'],
+  wear: ['新舊', '新舊程度', '成新', 'wear'],
+  condition: ['書況', '書本狀況', '品相', 'condition'],
+  location: ['位置', '藏書位置', '存放位置', '書櫃位置', '擺放位置', 'location', 'shelf'],
+  notes: ['備註', '註記', '筆記', 'notes', 'note', 'remark', 'memo'],
   author: ['作者', '文字', '文', 'author', 'writer'],
   illustrator: ['繪者', '插畫', '插畫者', '繪圖', '圖', 'illustrator'],
   translator: ['譯者', '翻譯', 'translator'],
@@ -27,14 +34,7 @@ const COLUMN_ALIASES: Record<ColumnField, string[]> = {
   ],
   ageRange: ['適讀年齡', '年齡層', '適讀', '建議年齡', '年齡', 'age', 'agerange'],
   readingMode: ['共讀方式', '共讀', '閱讀方式', '導讀方式', 'readingmode'],
-  tags: ['分類標籤', '建議標籤', '標籤', '分類', '主題', 'tags', 'tag', 'category'],
-  channel: ['購入管道', '購買管道', '取得管道', '購書管道', '管道', '來源', 'channel', 'source'],
-  price: ['購入價格', '價格', '售價', '定價', '金額', 'price', 'cost'],
-  status: ['狀態', '書籍狀態', '收藏狀態', '處理方式', 'status'],
-  wear: ['新舊', '新舊程度', '成新', 'wear'],
-  condition: ['書況', '書本狀況', '品相', 'condition'],
-  location: ['藏書位置', '存放位置', '書櫃位置', '擺放位置', '位置', 'location', 'shelf'],
-  notes: ['備註', '註記', '筆記', 'notes', 'note', 'remark', 'memo'],
+  tags: ['建議標籤', '分類標籤', '標籤', '分類', '主題', 'tags', 'tag', 'category'],
   isbn: ['isbn', 'isbn13', 'isbn10', '國際書碼', '條碼'],
 };
 
