@@ -13,7 +13,7 @@ export const STATUS_VALUES = [
   '絕版待交換',
 ] as const;
 export const WEAR_VALUES = ['近新', '9新', '8新', '7新', '5-6新'] as const;
-export const CONDITION_VALUES = ['無', '點斑', '微斑', '其他'] as const;
+export const CONDITION_VALUES = ['無', '點斑', '微斑', '其他(嚴重斑/有破等)'] as const;
 export const READING_MODE_VALUES = ['幼兒啟蒙', '親子共讀', '低中年級'] as const;
 
 /**

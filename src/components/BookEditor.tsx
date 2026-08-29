@@ -33,8 +33,11 @@ const EMPTY: Draft = {
 };
 
 /**
- * `options` fills a datalist: the values the shared sheet already uses are one
- * keystroke away, and anything else can still be typed.
+ * `options` is a fixed list the sheet keeps on its lookup page, so the field is
+ * a picker rather than a text box. It used to be a datalist behind a text
+ * input, which reads as if the other values are gone: a datalist filters its
+ * suggestions by what the box already says, so a book already marked 收藏 只
+ * offered 收藏 until the box was cleared. A select always shows the whole list.
  */
 const FIELDS: {
   key: keyof Draft;
@@ -44,21 +47,11 @@ const FIELDS: {
   /** The price is a number, so it gets its own input rather than a text one. */
   numeric?: boolean;
 }[] = [
-  {
-    key: 'status',
-    label: FIELD_LABELS.status,
-    placeholder: '例如 收藏 / 待售',
-    options: STATUS_VALUES,
-  },
+  { key: 'status', label: FIELD_LABELS.status, options: STATUS_VALUES },
   { key: 'channel', label: FIELD_LABELS.channel },
   { key: 'price', label: FIELD_LABELS.price, numeric: true },
-  { key: 'wear', label: FIELD_LABELS.wear, placeholder: '例如 近新 / 9新', options: WEAR_VALUES },
-  {
-    key: 'condition',
-    label: FIELD_LABELS.condition,
-    placeholder: '例如 無 / 微斑',
-    options: CONDITION_VALUES,
-  },
+  { key: 'wear', label: FIELD_LABELS.wear, options: WEAR_VALUES },
+  { key: 'condition', label: FIELD_LABELS.condition, options: CONDITION_VALUES },
   { key: 'location', label: FIELD_LABELS.location, placeholder: '例如 竹北 / 辦公室' },
   { key: 'author', label: FIELD_LABELS.author },
   { key: 'illustrator', label: FIELD_LABELS.illustrator },
@@ -68,6 +61,14 @@ const FIELDS: {
   { key: 'readingMode', label: FIELD_LABELS.readingMode, options: READING_MODE_VALUES },
   { key: 'isbn', label: FIELD_LABELS.isbn, placeholder: '例如 9789861897271' },
 ];
+
+/**
+ * The fixed list, plus whatever this book already says if the sheet has since
+ * moved on. An older row is never silently rewritten by opening the editor.
+ */
+function optionsFor(options: readonly string[], current: string): string[] {
+  return current === '' || options.includes(current) ? [...options] : [...options, current];
+}
 
 function toDraft(book: Book | null): Draft {
   if (!book) return EMPTY;
@@ -183,22 +184,28 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
                       }}
                       className="field"
                     />
+                  ) : field.options ? (
+                    <select
+                      id={`book-${field.key}`}
+                      value={String(draft[field.key] ?? '')}
+                      onChange={(event) => set(field.key, event.target.value)}
+                      className="field"
+                    >
+                      <option value="">未填</option>
+                      {optionsFor(field.options, String(draft[field.key] ?? '')).map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
                   ) : (
                     <input
                       id={`book-${field.key}`}
-                      list={field.options ? `book-${field.key}-options` : undefined}
                       value={String(draft[field.key] ?? '')}
                       placeholder={field.placeholder}
                       onChange={(event) => set(field.key, event.target.value)}
                       className="field"
                     />
-                  )}
-                  {field.options && (
-                    <datalist id={`book-${field.key}-options`}>
-                      {field.options.map((option) => (
-                        <option key={option} value={option} />
-                      ))}
-                    </datalist>
                   )}
                 </div>
               ))}
