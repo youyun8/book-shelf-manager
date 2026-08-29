@@ -135,3 +135,19 @@ export const IconArrowDown = ({ className }: IconProps) => (
     <path d="m6 13 6 6 6-6" />
   </svg>
 );
+
+export const IconPanelCollapse = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M10 4v16" />
+    <path d="m16.5 10-2 2 2 2" />
+  </svg>
+);
+
+export const IconPanelExpand = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M10 4v16" />
+    <path d="m14 10 2 2-2 2" />
+  </svg>
+);

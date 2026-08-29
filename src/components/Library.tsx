@@ -12,6 +12,7 @@ import type {
 import { EMPTY_FILTERS } from '../types';
 import type { Account } from '../lib/api';
 import { api } from '../lib/api';
+import { cn } from '../lib/cn';
 import { applyFilters, countActiveFilters } from '../lib/filter';
 import { promoteSortField, sortBooks } from '../lib/sort';
 import { buildAllFacets } from '../lib/facets';
@@ -20,8 +21,9 @@ import { SpreadsheetError } from '../lib/parse';
 import { readBooksFromFile } from '../lib/read-spreadsheet';
 import { downloadXlsx } from '../lib/export-xlsx';
 import { searchToState, stateToSearch } from '../lib/url-state';
+import { readFilterPanelOpen, writeFilterPanelOpen } from '../lib/filter-panel';
 import { AppHeader } from './AppHeader';
-import { FilterPanel } from './FilterPanel';
+import { FilterPanel, FilterRail } from './FilterPanel';
 import { ActiveFilters } from './ActiveFilters';
 import { ResultToolbar } from './ResultToolbar';
 import { BookCard } from './BookCard';
@@ -56,6 +58,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   const [selected, setSelected] = useState<Book | null>(null);
   const [editing, setEditing] = useState<Book | null | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(readFilterPanelOpen);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +89,9 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Whether the sidebar is open is this reader's own, so it is not in the URL.
+  useEffect(() => writeFilterPanelOpen(panelOpen), [panelOpen]);
 
   // Keep the address bar in sync so a filtered view can be shared or bookmarked.
   useEffect(() => {
@@ -274,7 +280,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
     setPage(1);
   }, []);
 
-  const renderPanel = (onClose?: () => void) => (
+  const renderPanel = (handlers: { onClose?: () => void; onCollapse?: () => void } = {}) => (
     <FilterPanel
       filters={filters}
       facets={facets}
@@ -283,7 +289,8 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
       onClearFacet={clearFacet}
       onChangeText={changeText}
       onReset={resetFilters}
-      onClose={onClose}
+      onClose={handlers.onClose}
+      onCollapse={handlers.onCollapse}
     />
   );
 
@@ -301,9 +308,28 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
       />
 
       <div className="page-shell flex gap-6 px-4 py-6 sm:px-6">
-        <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card">
-            {renderPanel()}
+        {/*
+          The sidebar slides rather than disappearing: its width animates and
+          the panel inside keeps its own, so the text is revealed and covered
+          instead of reflowing on every frame.
+        */}
+        <aside
+          className={cn(
+            'hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block',
+            panelOpen ? 'w-72' : 'w-14',
+          )}
+        >
+          <div
+            className={cn(
+              'sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-card',
+              panelOpen ? 'w-72 p-4' : 'w-14 p-2',
+            )}
+          >
+            {panelOpen ? (
+              renderPanel({ onCollapse: () => setPanelOpen(false) })
+            ) : (
+              <FilterRail activeCount={activeCount} onExpand={() => setPanelOpen(true)} />
+            )}
           </div>
         </aside>
 
@@ -392,7 +418,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col overflow-hidden bg-surface p-4 shadow-card">
-            {renderPanel(() => setDrawerOpen(false))}
+            {renderPanel({ onClose: () => setDrawerOpen(false) })}
             <button
               type="button"
               className="btn btn-primary mt-3 w-full"
