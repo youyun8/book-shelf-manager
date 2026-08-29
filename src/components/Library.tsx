@@ -20,8 +20,10 @@ import { SpreadsheetError } from '../lib/parse';
 import { readBooksFromFile } from '../lib/read-spreadsheet';
 import { downloadXlsx } from '../lib/export-xlsx';
 import { searchToState, stateToSearch } from '../lib/url-state';
+import type { Route } from '../lib/route';
+import { pathToRoute, routeHref } from '../lib/route';
 import { AppHeader } from './AppHeader';
-import { FilterPanel } from './FilterPanel';
+import { FiltersPage } from './FiltersPage';
 import { ActiveFilters } from './ActiveFilters';
 import { ResultToolbar } from './ResultToolbar';
 import { BookCard } from './BookCard';
@@ -55,7 +57,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Book | null>(null);
   const [editing, setEditing] = useState<Book | null | undefined>(undefined);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [route, setRoute] = useState<Route>(() => pathToRoute(window.location.pathname));
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,11 +89,36 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
     void load();
   }, [load]);
 
+  const search = stateToSearch({ filters, sort, view, pageSize });
+
   // Keep the address bar in sync so a filtered view can be shared or bookmarked.
   useEffect(() => {
-    const search = stateToSearch({ filters, sort, view, pageSize });
     window.history.replaceState(null, '', `${window.location.pathname}${search}`);
-  }, [filters, sort, view, pageSize]);
+  }, [search]);
+
+  // Back and forward move between the two pages, and restore what was selected.
+  useEffect(() => {
+    const onPopState = () => {
+      const restored = searchToState(window.location.search);
+      setRoute(pathToRoute(window.location.pathname));
+      setFilters(restored.filters);
+      setSort(restored.sort);
+      setView(restored.view);
+      setPageSize(restored.pageSize);
+      setPage(1);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = useCallback(
+    (next: Route) => {
+      window.history.pushState(null, '', routeHref(next, search));
+      setRoute(next);
+      window.scrollTo({ top: 0 });
+    },
+    [search],
+  );
 
   const importFile = useCallback(
     async (file: File) => {
@@ -274,19 +301,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
     setPage(1);
   }, []);
 
-  const renderPanel = (onClose?: () => void) => (
-    <FilterPanel
-      filters={filters}
-      facets={facets}
-      activeCount={activeCount}
-      onToggleFacet={toggleFacet}
-      onClearFacet={clearFacet}
-      onChangeText={changeText}
-      onReset={resetFilters}
-      onClose={onClose}
-    />
-  );
-
   return (
     <div className="min-h-screen bg-bg">
       <AppHeader
@@ -294,20 +308,31 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
         bookCount={books.length}
         busy={busy || status === 'loading'}
         canExport={results.length > 0}
+        route={route}
+        activeFilterCount={activeCount}
+        search={search}
+        onNavigate={navigate}
         onPickFile={(file) => void importFile(file)}
         onExport={() => downloadXlsx(results)}
         onCreate={() => setEditing(null)}
         onSignOut={() => void onSignOut()}
       />
 
-      <div className="page-shell flex gap-6 px-4 py-6 sm:px-6">
-        <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card">
-            {renderPanel()}
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 space-y-4">
+      {route === 'filters' ? (
+        <FiltersPage
+          filters={filters}
+          facets={facets}
+          activeCount={activeCount}
+          shown={results.length}
+          total={books.length}
+          onToggleFacet={toggleFacet}
+          onClearFacet={clearFacet}
+          onChangeText={changeText}
+          onReset={resetFilters}
+          onDone={() => navigate('library')}
+        />
+      ) : (
+        <main className="page-shell space-y-4 px-4 py-6 sm:px-6">
           <ResultToolbar
             shown={results.length}
             total={books.length}
@@ -315,11 +340,9 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
             sort={sort}
             view={view}
             pageSize={pageSize}
-            activeFilterCount={activeCount}
             onSortChange={changeSort}
             onViewChange={setView}
             onPageSizeChange={changePageSize}
-            onOpenFilters={() => setDrawerOpen(true)}
           />
 
           <ActiveFilters
@@ -362,7 +385,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
           {status === 'ready' && results.length > 0 && (
             <>
               {view === 'grid' ? (
-                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {pageResults.map((book) => (
                     <li key={book.id} className="flex">
                       <BookCard book={book} onOpen={setSelected} />
@@ -381,27 +404,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
             </>
           )}
         </main>
-      </div>
-
-      {drawerOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button
-            type="button"
-            aria-label="關閉篩選"
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setDrawerOpen(false)}
-          />
-          <div className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col overflow-hidden bg-surface p-4 shadow-card">
-            {renderPanel(() => setDrawerOpen(false))}
-            <button
-              type="button"
-              className="btn btn-primary mt-3 w-full"
-              onClick={() => setDrawerOpen(false)}
-            >
-              查看 {results.length} 筆結果
-            </button>
-          </div>
-        </div>
       )}
 
       <input

@@ -2,7 +2,7 @@ import type { PageSize, SortOrder, ViewMode } from '../types';
 import { PAGE_SIZES } from '../types';
 import { cn } from '../lib/cn';
 import { SortMenu } from './SortMenu';
-import { IconFilter, IconGrid, IconList } from './icons';
+import { IconGrid, IconList } from './icons';
 
 interface ResultToolbarProps {
   shown: number;
@@ -12,11 +12,9 @@ interface ResultToolbarProps {
   sort: SortOrder;
   view: ViewMode;
   pageSize: PageSize;
-  activeFilterCount: number;
   onSortChange: (sort: SortOrder) => void;
   onViewChange: (view: ViewMode) => void;
   onPageSizeChange: (pageSize: PageSize) => void;
-  onOpenFilters: () => void;
 }
 
 function pageSizeLabel(size: PageSize): string {
@@ -30,25 +28,14 @@ export function ResultToolbar({
   sort,
   view,
   pageSize,
-  activeFilterCount,
   onSortChange,
   onViewChange,
   onPageSizeChange,
-  onOpenFilters,
 }: ResultToolbarProps) {
   const paged = shown > 0 && (range.from !== 1 || range.to !== shown);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <button type="button" className="btn lg:hidden" onClick={onOpenFilters}>
-          <IconFilter className="h-4 w-4" />
-          篩選
-          {activeFilterCount > 0 && (
-            <span className="ml-0.5 rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
         <p className="text-sm text-fg-muted">
           {paged && (
             <span className="tabular-nums">

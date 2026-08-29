@@ -1,18 +1,20 @@
 import type { FacetKey, FacetOption, Filters, TextKey } from '../types';
 import { FACET_KEYS, FACET_LABELS, TEXT_KEYS, TEXT_LABELS } from '../types';
 import { FacetSection } from './FacetSection';
-import { IconClose, IconSearch } from './icons';
+import { IconSearch } from './icons';
 
-interface FilterPanelProps {
+interface FiltersPageProps {
   filters: Filters;
   facets: Record<FacetKey, FacetOption[]>;
   activeCount: number;
+  /** How many books the current selection leaves, and how many there are. */
+  shown: number;
+  total: number;
   onToggleFacet: (key: FacetKey, value: string) => void;
   onClearFacet: (key: FacetKey) => void;
   onChangeText: (key: TextKey, value: string) => void;
   onReset: () => void;
-  /** Renders a close button. Only the mobile drawer passes this. */
-  onClose?: () => void;
+  onDone: () => void;
 }
 
 const TEXT_PLACEHOLDERS: Record<TextKey, string> = {
@@ -21,44 +23,46 @@ const TEXT_PLACEHOLDERS: Record<TextKey, string> = {
   illustrator: '輸入繪者姓名',
 };
 
-export function FilterPanel({
+/**
+ * The filters on their own page. Every condition is visible at once here,
+ * rather than in a column beside the books, so the result count travels with
+ * the reader: it sits in the bar that takes them back to the list.
+ */
+export function FiltersPage({
   filters,
   facets,
   activeCount,
+  shown,
+  total,
   onToggleFacet,
   onClearFacet,
   onChangeText,
   onReset,
-  onClose,
-}: FilterPanelProps) {
+  onDone,
+}: FiltersPageProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-line pb-3">
-        <h2 className="text-sm font-semibold text-fg">篩選條件</h2>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onReset}
-            disabled={activeCount === 0}
-            className="focus-ring rounded px-1.5 py-0.5 text-xs font-medium text-fg-subtle transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
-          >
+    <main className="page-shell px-4 py-6 sm:px-6">
+      <div className="sticky top-[3.75rem] z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 bg-bg/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-fg">篩選條件</h2>
+          <p className="text-xs text-fg-subtle">
+            符合 <span className="font-semibold text-fg tabular-nums">{shown}</span> 本
+            <span className="text-fg-subtle">（全部 {total} 本）</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn" onClick={onReset} disabled={activeCount === 0}>
             全部清除
           </button>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="關閉篩選"
-              className="focus-ring rounded-lg p-1.5 text-fg-subtle transition hover:bg-surface-muted hover:text-fg"
-            >
-              <IconClose className="h-5 w-5" />
-            </button>
-          )}
+          <button type="button" className="btn btn-primary" onClick={onDone}>
+            查看 {shown} 筆結果
+          </button>
         </div>
       </div>
 
-      <div className="thin-scroll min-h-0 flex-1 overflow-y-auto">
-        <section className="space-y-3 border-b border-line py-4">
+      <section className="mb-4 rounded-xl border border-line bg-surface p-4 shadow-card">
+        <h3 className="mb-3 text-sm font-semibold text-fg">關鍵字</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {TEXT_KEYS.map((key) => (
             <div key={key}>
               <label
@@ -80,8 +84,10 @@ export function FilterPanel({
               </div>
             </div>
           ))}
-        </section>
+        </div>
+      </section>
 
+      <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {FACET_KEYS.map((key) => (
           <FacetSection
             key={key}
@@ -92,6 +98,6 @@ export function FilterPanel({
           />
         ))}
       </div>
-    </div>
+    </main>
   );
 }
