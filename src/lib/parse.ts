@@ -1,6 +1,7 @@
 import type { Book } from '../types';
 import { mapHeaderRow, headerScore } from './columns';
 import type { ColumnField, HeaderMap } from './columns';
+import { looksLikeStatus } from './vocabulary';
 
 const TAG_SEPARATORS = /[、,，/／;；|｜\n\r]+/;
 
@@ -60,8 +61,8 @@ function filledCount(rows: readonly Row[], index: number): number {
 
 /**
  * Picks one column per field. When a sheet carries several columns for the same
- * idea — `狀態` beside `書況`, say — the one people actually fill in is the one
- * worth showing, so the fullest column wins and the header order breaks ties.
+ * idea — `價格` beside `購入價格`, say — the one people actually fill in is the
+ * one worth showing, so the fullest column wins and the header order breaks ties.
  * The columns not chosen are kept as extra fields, so nothing is lost.
  */
 export function chooseColumns(
@@ -85,6 +86,19 @@ export function chooseColumns(
     chosen[field] = best;
   }
   return chosen;
+}
+
+/**
+ * `狀態` and `書況` used to share one column in this app. Older sheets only have
+ * `書況`, and fill it with what is really a status (`收藏`, `待售`), so a value
+ * that reads as a status is moved across rather than filed as a book's marks.
+ */
+export function splitStatus(
+  status: string,
+  condition: string,
+): { status: string; condition: string } {
+  if (status === '' && looksLikeStatus(condition)) return { status: condition, condition: '' };
+  return { status, condition };
 }
 
 export class SpreadsheetError extends Error {}
@@ -121,6 +135,11 @@ export function rowsToBooks(rows: readonly Row[]): Book[] {
       if (value !== '') extraValues[extra.label] = value;
     }
 
+    const { status, condition } = splitStatus(
+      cellToText(at(row, fields.status)),
+      cellToText(at(row, fields.condition)),
+    );
+
     books.push({
       id: `row-${index}`,
       title: title || '（未命名）',
@@ -130,11 +149,15 @@ export function rowsToBooks(rows: readonly Row[]): Book[] {
       publisher: cellToText(at(row, fields.publisher)),
       summary: cellToText(at(row, fields.summary)),
       ageRange: cellToText(at(row, fields.ageRange)),
+      readingMode: cellToText(at(row, fields.readingMode)),
       tags: splitTags(at(row, fields.tags)),
       channel: cellToText(at(row, fields.channel)),
       price: parsePrice(at(row, fields.price)),
-      condition: cellToText(at(row, fields.condition)),
+      status,
+      wear: cellToText(at(row, fields.wear)),
+      condition,
       location: cellToText(at(row, fields.location)),
+      notes: cellToText(at(row, fields.notes)),
       isbn: cellToText(at(row, fields.isbn)),
       extras: extraValues,
     });

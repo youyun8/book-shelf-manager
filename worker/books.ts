@@ -10,11 +10,15 @@ export interface BookRecord {
   publisher: string;
   summary: string;
   ageRange: string;
+  readingMode: string;
   tags: string[];
   channel: string;
   price: number | null;
+  status: string;
+  wear: string;
   condition: string;
   location: string;
+  notes: string;
   isbn: string;
   extras: Record<string, string>;
 }
@@ -28,19 +32,23 @@ interface BookRow {
   publisher: string;
   summary: string;
   age_range: string;
+  reading_mode: string;
   tags: string;
   channel: string;
   price: number | null;
+  status: string;
+  wear: string;
   condition: string;
   location: string;
+  notes: string;
   isbn: string;
   extras: string;
 }
 
 const COLUMNS = `id, position, title, author, illustrator, translator, publisher, summary,
-  age_range, tags, channel, price, condition, location, isbn, extras,
-  created_at, updated_at, updated_by`;
-const COLUMN_COUNT = 19;
+  age_range, reading_mode, tags, channel, price, status, wear, condition, location, notes, isbn,
+  extras, created_at, updated_at, updated_by`;
+const COLUMN_COUNT = 23;
 /** D1 allows 100 bound parameters per statement. */
 const ROWS_PER_INSERT = Math.floor(100 / COLUMN_COUNT);
 
@@ -63,11 +71,15 @@ export function rowToBook(row: BookRow): BookRecord {
     publisher: row.publisher,
     summary: row.summary,
     ageRange: row.age_range,
+    readingMode: row.reading_mode,
     tags: parseJson<string[]>(row.tags, []),
     channel: row.channel,
     price: row.price,
+    status: row.status,
+    wear: row.wear,
     condition: row.condition,
     location: row.location,
+    notes: row.notes,
     isbn: row.isbn,
     extras: parseJson<Record<string, string>>(row.extras, {}),
   };
@@ -109,11 +121,15 @@ export function sanitizeBook(input: unknown): Omit<BookRecord, 'id'> {
     publisher: text(source.publisher, 200),
     summary: text(source.summary, 4000),
     ageRange: text(source.ageRange, 60),
+    readingMode: text(source.readingMode, 60),
     tags: tags.slice(0, 40),
     channel: text(source.channel, 120),
     price: price(source.price),
+    status: text(source.status, 60),
+    wear: text(source.wear, 60),
     condition: text(source.condition, 60),
     location: text(source.location, 200),
+    notes: text(source.notes, 2000),
     isbn: text(source.isbn, 40),
     extras,
   };
@@ -143,11 +159,15 @@ function bindValues(
     book.publisher,
     book.summary,
     book.ageRange,
+    book.readingMode,
     JSON.stringify(book.tags),
     book.channel,
     book.price,
+    book.status,
+    book.wear,
     book.condition,
     book.location,
+    book.notes,
     book.isbn,
     JSON.stringify(book.extras),
     now,
@@ -184,8 +204,9 @@ export async function updateBook(
 ): Promise<BookRecord | null> {
   const result = await env.DB.prepare(
     `UPDATE books SET title = ?, author = ?, illustrator = ?, translator = ?, publisher = ?,
-       summary = ?, age_range = ?, tags = ?, channel = ?, price = ?, condition = ?, location = ?,
-       isbn = ?, extras = ?, updated_at = ?, updated_by = ?
+       summary = ?, age_range = ?, reading_mode = ?, tags = ?, channel = ?, price = ?, status = ?,
+       wear = ?, condition = ?, location = ?, notes = ?, isbn = ?, extras = ?, updated_at = ?,
+       updated_by = ?
      WHERE id = ?`,
   )
     .bind(
@@ -196,11 +217,15 @@ export async function updateBook(
       book.publisher,
       book.summary,
       book.ageRange,
+      book.readingMode,
       JSON.stringify(book.tags),
       book.channel,
       book.price,
+      book.status,
+      book.wear,
       book.condition,
       book.location,
+      book.notes,
       book.isbn,
       JSON.stringify(book.extras),
       Date.now(),

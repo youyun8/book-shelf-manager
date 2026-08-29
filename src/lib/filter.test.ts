@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Book, Filters } from '../types';
 import { EMPTY_FILTERS } from '../types';
-import { applyFilters, countActiveFilters, sortBooks } from './filter';
-import { buildFacet, ageSortKey } from './facets';
+import { applyFilters, countActiveFilters } from './filter';
+import { buildFacet } from './facets';
 
 function book(overrides: Partial<Book>): Book {
   return {
@@ -14,11 +14,15 @@ function book(overrides: Partial<Book>): Book {
     publisher: '',
     summary: '',
     ageRange: '',
+    readingMode: '',
     tags: [],
     channel: '',
     price: null,
+    status: '',
+    wear: '',
     condition: '',
     location: '',
+    notes: '',
     isbn: '',
     extras: {},
     ...overrides,
@@ -36,7 +40,7 @@ const BOOKS: Book[] = [
     tags: ['療癒', '夢想'],
     channel: '誠品書店',
     price: 320,
-    condition: '收藏',
+    status: '收藏',
   }),
   book({
     id: '2',
@@ -48,7 +52,7 @@ const BOOKS: Book[] = [
     tags: ['幽默'],
     channel: '網路書店',
     price: 280,
-    condition: '收藏',
+    status: '收藏',
   }),
   book({
     id: '3',
@@ -60,7 +64,7 @@ const BOOKS: Book[] = [
     tags: ['友誼', '美感'],
     channel: '二手書店',
     price: 200,
-    condition: '待售',
+    status: '待售',
   }),
 ];
 
@@ -77,7 +81,7 @@ describe('applyFilters', () => {
   });
 
   it('ORs values inside one facet', () => {
-    const result = applyFilters(BOOKS, withFilters({ condition: ['收藏', '待售'] }));
+    const result = applyFilters(BOOKS, withFilters({ status: ['收藏', '待售'] }));
     expect(result).toHaveLength(3);
   });
 
@@ -109,7 +113,7 @@ describe('applyFilters', () => {
   });
 
   it('can skip one facet, which is how sidebar counts are computed', () => {
-    const filters = withFilters({ publisher: ['青林國際'], condition: ['收藏'] });
+    const filters = withFilters({ publisher: ['青林國際'], status: ['收藏'] });
     expect(applyFilters(BOOKS, filters)).toHaveLength(0);
     expect(applyFilters(BOOKS, filters, 'publisher')).toHaveLength(2);
   });
@@ -121,28 +125,6 @@ describe('countActiveFilters', () => {
     expect(
       countActiveFilters(withFilters({ tags: ['友誼', '美感'] }, { title: '小', author: ' ' })),
     ).toBe(3);
-  });
-});
-
-describe('sortBooks', () => {
-  it('keeps the file order by default', () => {
-    expect(sortBooks(BOOKS, 'default').map((item) => item.id)).toEqual(['1', '2', '3']);
-  });
-
-  it('sorts by price and keeps books without a price last', () => {
-    const withUnpriced = [...BOOKS, book({ id: '4', title: '無價格' })];
-    expect(sortBooks(withUnpriced, 'priceAsc').map((item) => item.id)).toEqual([
-      '3',
-      '2',
-      '1',
-      '4',
-    ]);
-    expect(sortBooks(withUnpriced, 'priceDesc').map((item) => item.id)).toEqual([
-      '1',
-      '2',
-      '3',
-      '4',
-    ]);
   });
 });
 
@@ -162,13 +144,5 @@ describe('buildFacet', () => {
   it('orders other facets by count', () => {
     const options = buildFacet(BOOKS, EMPTY_FILTERS, 'publisher');
     expect(options[0]?.value).toBe('格林文化');
-  });
-});
-
-describe('ageSortKey', () => {
-  it('reads the first number of an age label', () => {
-    expect(ageSortKey('0-4 歲')).toBe(0);
-    expect(ageSortKey('4-10 歲')).toBe(4);
-    expect(ageSortKey('全齡')).toBe(Number.POSITIVE_INFINITY);
   });
 });

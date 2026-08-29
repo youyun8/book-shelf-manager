@@ -1,6 +1,6 @@
 import type { Book } from '../types';
 import { cn } from '../lib/cn';
-import { conditionClass, formatPrice } from '../lib/badge';
+import { statusClass, formatPrice } from '../lib/badge';
 
 const MAX_TAGS = 4;
 
@@ -28,14 +28,14 @@ export function BookCard({ book, onOpen }: BookCardProps) {
         <h3 className="text-[15px] leading-snug font-semibold text-fg group-hover:text-accent">
           {book.title}
         </h3>
-        {book.condition && (
+        {book.status && (
           <span
             className={cn(
               'shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium',
-              conditionClass(book.condition),
+              statusClass(book.status),
             )}
           >
-            {book.condition}
+            {book.status}
           </span>
         )}
       </div>
@@ -55,6 +55,9 @@ export function BookCard({ book, onOpen }: BookCardProps) {
         {book.publisher && <span className="font-medium text-fg-muted">{book.publisher}</span>}
         {book.ageRange && (
           <span className="rounded bg-surface-muted px-1.5 py-0.5">{book.ageRange}</span>
+        )}
+        {book.readingMode && (
+          <span className="rounded bg-surface-muted px-1.5 py-0.5">{book.readingMode}</span>
         )}
       </div>
 

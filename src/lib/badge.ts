@@ -1,5 +1,5 @@
-/** Colour for the 書況 badge. Unknown values fall back to a neutral style. */
-const CONDITION_STYLES: { match: string[]; className: string }[] = [
+/** Colour for the 狀態 badge. Unknown values fall back to a neutral style. */
+const STATUS_STYLES: { match: string[]; className: string }[] = [
   {
     match: ['收藏', '典藏', '保留'],
     className:
@@ -9,6 +9,11 @@ const CONDITION_STYLES: { match: string[]; className: string }[] = [
     match: ['待售', '出售', '販售'],
     className:
       'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300',
+  },
+  {
+    match: ['絕版', '交換'],
+    className:
+      'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-300',
   },
   {
     match: ['待共讀', '共讀'],
@@ -28,9 +33,9 @@ const CONDITION_STYLES: { match: string[]; className: string }[] = [
 
 const NEUTRAL = 'border-line bg-surface-muted text-fg-muted';
 
-export function conditionClass(condition: string): string {
-  const found = CONDITION_STYLES.find((style) =>
-    style.match.some((keyword) => condition.includes(keyword)),
+export function statusClass(status: string): string {
+  const found = STATUS_STYLES.find((style) =>
+    style.match.some((keyword) => status.includes(keyword)),
   );
   return found?.className ?? NEUTRAL;
 }

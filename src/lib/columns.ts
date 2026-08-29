@@ -7,7 +7,7 @@ export type ColumnField = Exclude<keyof Book, 'id' | 'extras'>;
  * Accepted header names per field. Matching is done on a normalized header
  * (whitespace removed, bracketed notes stripped, latin text lower-cased), first
  * by exact alias and then by substring, so `狀態(收藏/待售/待共讀)` still maps to
- * `condition` and `書籍內容摘要` still maps to `summary`.
+ * `status` and `書籍內容摘要` still maps to `summary`.
  */
 const COLUMN_ALIASES: Record<ColumnField, string[]> = {
   title: ['書名', '書籍名稱', '名稱', '書目', 'title', 'name'],
@@ -26,11 +26,15 @@ const COLUMN_ALIASES: Record<ColumnField, string[]> = {
     'description',
   ],
   ageRange: ['適讀年齡', '年齡層', '適讀', '建議年齡', '年齡', 'age', 'agerange'],
+  readingMode: ['共讀方式', '共讀', '閱讀方式', '導讀方式', 'readingmode'],
   tags: ['分類標籤', '建議標籤', '標籤', '分類', '主題', 'tags', 'tag', 'category'],
   channel: ['購入管道', '購買管道', '取得管道', '購書管道', '管道', '來源', 'channel', 'source'],
   price: ['購入價格', '價格', '售價', '定價', '金額', 'price', 'cost'],
-  condition: ['書況', '狀態', '書籍狀態', 'condition', 'status'],
+  status: ['狀態', '書籍狀態', '收藏狀態', '處理方式', 'status'],
+  wear: ['新舊', '新舊程度', '成新', 'wear'],
+  condition: ['書況', '書本狀況', '品相', 'condition'],
   location: ['藏書位置', '存放位置', '書櫃位置', '擺放位置', '位置', 'location', 'shelf'],
+  notes: ['備註', '註記', '筆記', 'notes', 'note', 'remark', 'memo'],
   isbn: ['isbn', 'isbn13', 'isbn10', '國際書碼', '條碼'],
 };
 
@@ -68,8 +72,8 @@ export interface HeaderMap {
   fields: Partial<Record<ColumnField, number>>;
   /**
    * Every column whose header matches a field, in alias order. Sheets grown
-   * over time often carry two columns for the same idea (`狀態` next to `書況`),
-   * and only the data says which one is actually in use.
+   * over time often carry two columns for the same idea (`價格` next to
+   * `購入價格`), and only the data says which one is actually in use.
    */
   candidates: Partial<Record<ColumnField, number[]>>;
 }

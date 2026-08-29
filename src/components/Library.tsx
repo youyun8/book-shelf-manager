@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Book, FacetKey, Filters, PageSize, SortKey, TextKey, ViewMode } from '../types';
+import type {
+  Book,
+  FacetKey,
+  Filters,
+  PageSize,
+  SortField,
+  SortOrder,
+  TextKey,
+  ViewMode,
+} from '../types';
 import { EMPTY_FILTERS } from '../types';
 import type { Account } from '../lib/api';
 import { api } from '../lib/api';
-import { applyFilters, countActiveFilters, sortBooks } from '../lib/filter';
+import { applyFilters, countActiveFilters } from '../lib/filter';
+import { promoteSortField, sortBooks } from '../lib/sort';
 import { buildAllFacets } from '../lib/facets';
 import { pageCount as countPages } from '../lib/pagination';
 import { SpreadsheetError } from '../lib/parse';
@@ -33,7 +43,7 @@ interface LibraryProps {
 export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   const initial = useMemo(() => searchToState(window.location.search), []);
   const [filters, setFilters] = useState(initial.filters);
-  const [sort, setSort] = useState<SortKey>(initial.sort);
+  const [sort, setSort] = useState<SortOrder>(initial.sort);
   const [view, setView] = useState<ViewMode>(initial.view);
   const [pageSize, setPageSize] = useState<PageSize>(initial.pageSize);
   const [page, setPage] = useState(1);
@@ -248,10 +258,16 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
 
   const resetFilters = useCallback(() => changeFilters(() => EMPTY_FILTERS), [changeFilters]);
 
-  const changeSort = useCallback((next: SortKey) => {
+  const changeSort = useCallback((next: SortOrder) => {
     setSort(next);
     setPage(1);
   }, []);
+
+  // Clicking a table header sorts by that column, keeping the keys under it.
+  const sortByField = useCallback(
+    (field: SortField) => changeSort(promoteSortField(sort, field)),
+    [changeSort, sort],
+  );
 
   const changePageSize = useCallback((next: PageSize) => {
     setPageSize(next);
@@ -354,7 +370,12 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
                   ))}
                 </ul>
               ) : (
-                <BookTable books={pageResults} onOpen={setSelected} />
+                <BookTable
+                  books={pageResults}
+                  sort={sort}
+                  onSortBy={sortByField}
+                  onOpen={setSelected}
+                />
               )}
               <Pagination page={currentPage} pageCount={pageCount} onPageChange={goToPage} />
             </>

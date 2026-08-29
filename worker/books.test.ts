@@ -23,6 +23,9 @@ describe('sanitizeBook', () => {
     const book = sanitizeBook({});
     expect(book.title).toBe('（未命名）');
     expect(book.author).toBe('');
+    expect(book.status).toBe('');
+    expect(book.wear).toBe('');
+    expect(book.notes).toBe('');
     expect(book.tags).toEqual([]);
     expect(book.price).toBeNull();
     expect(book.extras).toEqual({});
@@ -54,17 +57,26 @@ describe('rowToBook', () => {
       publisher: '格林文化',
       summary: '找媽媽的小貓頭鷹。',
       age_range: '0-4 歲',
+      reading_mode: '幼兒啟蒙',
       tags: '["親子關係","幽默"]',
       channel: '網路書店',
       price: 280,
-      condition: '收藏',
+      status: '收藏',
+      wear: '9新',
+      condition: '微斑',
       location: '客廳書櫃 A1',
+      notes: '朋友推薦',
       isbn: '9789861897271',
-      extras: '{"備註":"朋友推薦"}',
+      extras: '{"借給誰":"小美"}',
     });
     expect(book.ageRange).toBe('0-4 歲');
+    expect(book.readingMode).toBe('幼兒啟蒙');
+    expect(book.status).toBe('收藏');
+    expect(book.wear).toBe('9新');
+    expect(book.condition).toBe('微斑');
+    expect(book.notes).toBe('朋友推薦');
     expect(book.tags).toEqual(['親子關係', '幽默']);
-    expect(book.extras).toEqual({ 備註: '朋友推薦' });
+    expect(book.extras).toEqual({ 借給誰: '小美' });
   });
 
   it('survives corrupted JSON columns', () => {
@@ -77,11 +89,15 @@ describe('rowToBook', () => {
       publisher: '',
       summary: '',
       age_range: '',
+      reading_mode: '',
       tags: 'not json',
       channel: '',
       price: null,
+      status: '',
+      wear: '',
       condition: '',
       location: '',
+      notes: '',
       isbn: '',
       extras: 'null',
     });

@@ -111,3 +111,27 @@ export const IconSliders = ({ className }: IconProps) => (
     <circle cx="16" cy="18" r="2" />
   </svg>
 );
+
+export const IconSort = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M4 7h11" />
+    <path d="M4 12h7" />
+    <path d="M4 17h4" />
+    <path d="M17 5v14" />
+    <path d="m14 16 3 3 3-3" />
+  </svg>
+);
+
+export const IconArrowUp = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M12 19V5" />
+    <path d="m6 11 6-6 6 6" />
+  </svg>
+);
+
+export const IconArrowDown = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M12 5v14" />
+    <path d="m6 13 6 6 6-6" />
+  </svg>
+);

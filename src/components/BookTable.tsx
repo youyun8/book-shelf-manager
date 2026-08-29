@@ -1,39 +1,42 @@
-import type { Book } from '../types';
+import type { Book, SortField, SortOrder } from '../types';
 import { cn } from '../lib/cn';
-import { conditionClass, formatPrice } from '../lib/badge';
+import { statusClass, formatPrice } from '../lib/badge';
+import { sortDirectionLabel, sortFieldLabel } from '../lib/sort';
+import { IconArrowDown, IconArrowUp } from './icons';
 
 interface BookTableProps {
   books: Book[];
+  sort: SortOrder;
+  /** Makes this column the first sort key, or flips it when it already is. */
+  onSortBy: (field: SortField) => void;
   onOpen: (book: Book) => void;
 }
 
-const HEADERS = [
-  '書名',
-  '作者',
-  '繪者',
-  '出版社',
-  '適讀年齡',
-  '分類標籤',
-  '購入管道',
-  '價格',
-  '書況',
-  '藏書位置',
+/** Every column is sortable except the tags, which a book can have many of. */
+const COLUMNS: { label: string; field?: SortField }[] = [
+  { label: '書名', field: 'title' },
+  { label: '作者', field: 'author' },
+  { label: '繪者', field: 'illustrator' },
+  { label: '出版社', field: 'publisher' },
+  { label: '適讀年齡', field: 'ageRange' },
+  { label: '共讀方式', field: 'readingMode' },
+  { label: '建議標籤' },
+  { label: '購入管道', field: 'channel' },
+  { label: '價格', field: 'price' },
+  { label: '狀態', field: 'status' },
+  { label: '新舊', field: 'wear' },
+  { label: '書況', field: 'condition' },
+  { label: '藏書位置', field: 'location' },
 ];
 
-export function BookTable({ books, onOpen }: BookTableProps) {
+export function BookTable({ books, sort, onSortBy, onOpen }: BookTableProps) {
   return (
     <div className="thin-scroll overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
-      <table className="w-full min-w-[900px] border-collapse text-sm">
+      <table className="w-full min-w-[1180px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-line bg-surface-muted text-left">
-            {HEADERS.map((header) => (
-              <th
-                key={header}
-                scope="col"
-                className="px-3 py-2.5 text-xs font-semibold whitespace-nowrap text-fg-muted"
-              >
-                {header}
-              </th>
+            {COLUMNS.map((column) => (
+              <SortableHeader key={column.label} column={column} sort={sort} onSortBy={onSortBy} />
             ))}
           </tr>
         </thead>
@@ -64,24 +67,31 @@ export function BookTable({ books, onOpen }: BookTableProps) {
               <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
                 {book.ageRange || '—'}
               </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+                {book.readingMode || '—'}
+              </td>
               <td className="px-3 py-2.5 text-fg-muted">{book.tags.join('、') || '—'}</td>
               <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.channel || '—'}</td>
               <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-fg">
                 {formatPrice(book.price)}
               </td>
               <td className="px-3 py-2.5 whitespace-nowrap">
-                {book.condition ? (
+                {book.status ? (
                   <span
                     className={cn(
                       'rounded-full border px-2 py-0.5 text-[11px] font-medium',
-                      conditionClass(book.condition),
+                      statusClass(book.status),
                     )}
                   >
-                    {book.condition}
+                    {book.status}
                   </span>
                 ) : (
                   '—'
                 )}
+              </td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{book.wear || '—'}</td>
+              <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+                {book.condition || '—'}
               </td>
               <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
                 {book.location || '—'}
@@ -91,5 +101,54 @@ export function BookTable({ books, onOpen }: BookTableProps) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+interface SortableHeaderProps {
+  column: { label: string; field?: SortField };
+  sort: SortOrder;
+  onSortBy: (field: SortField) => void;
+}
+
+/**
+ * A header that also says where its column stands in the sort: the arrow shows
+ * the direction, and the small number appears once more than one key is in use,
+ * so a reader can see that the list is by name and then by price.
+ */
+function SortableHeader({ column, sort, onSortBy }: SortableHeaderProps) {
+  const { field, label } = column;
+  const at = field ? sort.findIndex((rule) => rule.field === field) : -1;
+  const rule = at === -1 ? undefined : sort[at];
+  const ariaSort = rule ? (rule.direction === 'asc' ? 'ascending' : 'descending') : undefined;
+
+  return (
+    <th
+      scope="col"
+      aria-sort={ariaSort}
+      className="px-3 py-2.5 text-xs font-semibold whitespace-nowrap text-fg-muted"
+    >
+      {field === undefined ? (
+        label
+      ) : (
+        <button
+          type="button"
+          onClick={() => onSortBy(field)}
+          title={rule ? `${sortFieldLabel(field)}：${sortDirectionLabel(rule)}` : `依${label}排序`}
+          className={cn(
+            'focus-ring -mx-1 flex items-center gap-1 rounded px-1 py-0.5 transition hover:text-accent',
+            rule && 'text-accent',
+          )}
+        >
+          {label}
+          {rule &&
+            (rule.direction === 'asc' ? (
+              <IconArrowUp className="h-3 w-3" />
+            ) : (
+              <IconArrowDown className="h-3 w-3" />
+            ))}
+          {rule && sort.length > 1 && <span className="text-[10px] tabular-nums">{at + 1}</span>}
+        </button>
+      )}
+    </th>
   );
 }

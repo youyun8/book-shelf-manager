@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Book } from '../types';
 import { splitTags } from '../lib/parse';
+import {
+  CONDITION_VALUES,
+  READING_MODE_VALUES,
+  STATUS_VALUES,
+  WEAR_VALUES,
+} from '../lib/vocabulary';
 import { IconClose, IconSpinner } from './icons';
 
 type Draft = Omit<Book, 'id' | 'tags' | 'extras'> & { tags: string };
@@ -13,22 +19,38 @@ const EMPTY: Draft = {
   publisher: '',
   summary: '',
   ageRange: '',
+  readingMode: '',
   tags: '',
   channel: '',
   price: null,
+  status: '',
+  wear: '',
   condition: '',
   location: '',
+  notes: '',
   isbn: '',
 };
 
-const FIELDS: { key: keyof Draft; label: string; placeholder?: string }[] = [
+/**
+ * `options` fills a datalist: the values the shared sheet already uses are one
+ * keystroke away, and anything else can still be typed.
+ */
+const FIELDS: {
+  key: keyof Draft;
+  label: string;
+  placeholder?: string;
+  options?: readonly string[];
+}[] = [
   { key: 'author', label: '作者' },
   { key: 'illustrator', label: '繪者' },
   { key: 'translator', label: '譯者' },
   { key: 'publisher', label: '出版社' },
   { key: 'ageRange', label: '適讀年齡', placeholder: '例如 3-6 歲' },
+  { key: 'readingMode', label: '共讀方式', options: READING_MODE_VALUES },
   { key: 'channel', label: '購入管道' },
-  { key: 'condition', label: '書況', placeholder: '例如 收藏 / 待售' },
+  { key: 'status', label: '狀態', placeholder: '例如 收藏 / 待售', options: STATUS_VALUES },
+  { key: 'wear', label: '新舊', placeholder: '例如 近新 / 9新', options: WEAR_VALUES },
+  { key: 'condition', label: '書況', placeholder: '例如 無 / 微斑', options: CONDITION_VALUES },
   { key: 'location', label: '藏書位置' },
   { key: 'isbn', label: 'ISBN', placeholder: '例如 9789861897271' },
 ];
@@ -134,11 +156,19 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
                   </label>
                   <input
                     id={`book-${field.key}`}
+                    list={field.options ? `book-${field.key}-options` : undefined}
                     value={String(draft[field.key] ?? '')}
                     placeholder={field.placeholder}
                     onChange={(event) => set(field.key, event.target.value)}
                     className="field"
                   />
+                  {field.options && (
+                    <datalist id={`book-${field.key}-options`}>
+                      {field.options.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
               ))}
 
@@ -147,7 +177,7 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
                   htmlFor="book-price"
                   className="mb-1 block text-xs font-medium text-fg-muted"
                 >
-                  購入價格
+                  價格
                 </label>
                 <input
                   id="book-price"
@@ -168,7 +198,7 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
 
             <div>
               <label htmlFor="book-tags" className="mb-1 block text-xs font-medium text-fg-muted">
-                分類標籤
+                建議標籤
               </label>
               <input
                 id="book-tags"
@@ -191,6 +221,19 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
                 rows={4}
                 value={draft.summary}
                 onChange={(event) => set('summary', event.target.value)}
+                className="field resize-y"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="book-notes" className="mb-1 block text-xs font-medium text-fg-muted">
+                備註
+              </label>
+              <textarea
+                id="book-notes"
+                rows={2}
+                value={draft.notes}
+                onChange={(event) => set('notes', event.target.value)}
                 className="field resize-y"
               />
             </div>

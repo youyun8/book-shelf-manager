@@ -12,22 +12,29 @@ const book: Book = {
   publisher: '出版社',
   summary: 'A & B < C',
   ageRange: '8+',
+  readingMode: '親子共讀',
   tags: ['經典', '成長'],
   channel: '書店',
   price: 299,
-  condition: '收藏',
+  status: '收藏',
+  wear: '近新',
+  condition: '無',
   location: 'A1',
+  notes: '',
   isbn: '9781234567890',
-  extras: { 備註: '禮物' },
+  extras: { 借給誰: '小美' },
 };
 
 describe('Excel export', () => {
   it('includes standard fields and the union of custom fields', () => {
     const rows = booksToRows([book]);
+    expect(rows[0]).toContain('狀態');
+    expect(rows[0]).toContain('新舊');
     expect(rows[0]).toContain('ISBN');
-    expect(rows[0]).toContain('備註');
+    expect(rows[0]).toContain('借給誰');
     expect(rows[1]).toContain(299);
-    expect(rows[1]).toContain('禮物');
+    expect(rows[1]).toContain('近新');
+    expect(rows[1]).toContain('小美');
   });
 
   it('creates a valid XLSX archive with escaped shared strings', () => {

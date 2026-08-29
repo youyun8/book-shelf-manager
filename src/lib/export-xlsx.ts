@@ -9,13 +9,20 @@ const COLUMNS: { header: string; value: (book: Book) => SpreadsheetCell }[] = [
   { header: '出版社', value: (book) => book.publisher },
   { header: '內容簡介', value: (book) => book.summary },
   { header: '適讀年齡', value: (book) => book.ageRange },
-  { header: '分類標籤', value: (book) => book.tags.join('、') },
+  { header: '共讀方式', value: (book) => book.readingMode },
+  { header: '建議標籤', value: (book) => book.tags.join('、') },
   { header: '購入管道', value: (book) => book.channel },
-  { header: '購入價格', value: (book) => book.price },
+  { header: '價格', value: (book) => book.price },
+  { header: '狀態', value: (book) => book.status },
+  { header: '新舊', value: (book) => book.wear },
   { header: '書況', value: (book) => book.condition },
   { header: '藏書位置', value: (book) => book.location },
+  { header: '備註', value: (book) => book.notes },
   { header: 'ISBN', value: (book) => book.isbn },
 ];
+
+/** Columns wide enough to read without resizing: the title and the summary. */
+const WIDE_COLUMNS: Record<number, number> = { 0: 28, 5: 50 };
 
 /** Converts books to rows, preserving every custom spreadsheet column. */
 export function booksToRows(books: readonly Book[]): SpreadsheetCell[][] {
@@ -31,11 +38,9 @@ export function booksToRows(books: readonly Book[]): SpreadsheetCell[][] {
 
 export function booksToXlsx(books: readonly Book[]): Uint8Array {
   const rows = booksToRows(books);
-  const widths = rows[0]!.map((header, index) => {
-    if (index === 0) return 28;
-    if (index === 5) return 50;
-    return Math.max(12, Math.min(24, String(header).length * 2));
-  });
+  const widths = rows[0]!.map(
+    (header, index) => WIDE_COLUMNS[index] ?? Math.max(12, Math.min(24, String(header).length * 2)),
+  );
   return rowsToXlsx(rows, { sheetName: 'Books', columnWidths: widths });
 }
 
