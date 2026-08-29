@@ -1,6 +1,7 @@
-import type { PageSize, SortKey, ViewMode } from '../types';
+import type { PageSize, SortOrder, ViewMode } from '../types';
 import { PAGE_SIZES } from '../types';
 import { cn } from '../lib/cn';
+import { SortMenu } from './SortMenu';
 import { IconFilter, IconGrid, IconList } from './icons';
 
 interface ResultToolbarProps {
@@ -8,11 +9,11 @@ interface ResultToolbarProps {
   total: number;
   /** 1-based range of the current page inside the filtered result. */
   range: { from: number; to: number };
-  sort: SortKey;
+  sort: SortOrder;
   view: ViewMode;
   pageSize: PageSize;
   activeFilterCount: number;
-  onSortChange: (sort: SortKey) => void;
+  onSortChange: (sort: SortOrder) => void;
   onViewChange: (view: ViewMode) => void;
   onPageSizeChange: (pageSize: PageSize) => void;
   onOpenFilters: () => void;
@@ -21,14 +22,6 @@ interface ResultToolbarProps {
 function pageSizeLabel(size: PageSize): string {
   return size === 'all' ? '全部' : String(size);
 }
-
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'default', label: '檔案順序' },
-  { value: 'title', label: '書名' },
-  { value: 'publisher', label: '出版社' },
-  { value: 'priceAsc', label: '價格：低到高' },
-  { value: 'priceDesc', label: '價格：高到低' },
-];
 
 export function ResultToolbar({
   shown,
@@ -68,20 +61,7 @@ export function ResultToolbar({
       </div>
 
       <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
-          排序
-          <select
-            value={sort}
-            onChange={(event) => onSortChange(event.target.value as SortKey)}
-            className="field w-auto py-1.5 text-xs"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SortMenu sort={sort} onChange={onSortChange} />
 
         <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
           每頁

@@ -18,11 +18,15 @@ const HEADER = [
   '出版社',
   '內容簡介',
   '適讀年齡',
+  '共讀方式',
   '建議標籤',
   '購入管道',
   '價格',
   '狀態(收藏/待售/待共讀)',
+  '新舊',
+  '書況(無/點/微/嚴重)',
   '藏書位置',
+  '備註',
 ];
 
 const ROW = [
@@ -33,11 +37,15 @@ const ROW = [
   '格林文化',
   '絕美畫風。',
   '4-10 歲',
+  '親子共讀',
   '療癒、美感、夢想',
   '誠品書店',
   'NT$320',
   '收藏',
+  '近新',
+  '微斑',
   '客廳書櫃 A1',
+  '朋友送的',
 ];
 
 describe('normalizeHeader', () => {
@@ -54,10 +62,21 @@ describe('mapHeaderRow', () => {
     expect(fields.title).toBe(0);
     expect(fields.illustrator).toBe(2);
     expect(fields.summary).toBe(5);
-    expect(fields.tags).toBe(7);
-    expect(fields.price).toBe(9);
-    expect(fields.condition).toBe(10);
-    expect(fields.location).toBe(11);
+    expect(fields.readingMode).toBe(7);
+    expect(fields.tags).toBe(8);
+    expect(fields.price).toBe(10);
+    expect(fields.status).toBe(11);
+    expect(fields.wear).toBe(12);
+    expect(fields.condition).toBe(13);
+    expect(fields.location).toBe(14);
+    expect(fields.notes).toBe(15);
+  });
+
+  it('keeps 狀態, 新舊 and 書況 apart', () => {
+    const { fields } = mapHeaderRow(['書名', '書況', '狀態', '新舊']);
+    expect(fields.condition).toBe(1);
+    expect(fields.status).toBe(2);
+    expect(fields.wear).toBe(3);
   });
 
   it('prefers the most specific alias when several columns look similar', () => {
@@ -118,31 +137,47 @@ describe('rowsToBooks', () => {
     expect(book?.illustrator).toBe('刀根里衣');
     expect(book?.tags).toEqual(['療癒', '美感', '夢想']);
     expect(book?.price).toBe(320);
-    expect(book?.condition).toBe('收藏');
+    expect(book?.readingMode).toBe('親子共讀');
+    expect(book?.status).toBe('收藏');
+    expect(book?.wear).toBe('近新');
+    expect(book?.condition).toBe('微斑');
     expect(book?.location).toBe('客廳書櫃 A1');
+    expect(book?.notes).toBe('朋友送的');
   });
 
   it('keeps unknown columns in extras and skips empty rows', () => {
     const books = rowsToBooks([
-      [...HEADER, 'ISBN', '備註'],
-      [...ROW, '9789861897271', '朋友推薦'],
+      [...HEADER, 'ISBN', '借給誰'],
+      [...ROW, '9789861897271', '小美'],
       [],
       ['', '', ''],
     ]);
     expect(books).toHaveLength(1);
     expect(books[0]?.isbn).toBe('9789861897271');
-    expect(books[0]?.extras).toEqual({ 備註: '朋友推薦' });
+    expect(books[0]?.extras).toEqual({ 借給誰: '小美' });
+  });
+
+  it('files an older sheet that only has 書況 under the status it really means', () => {
+    const books = rowsToBooks([
+      ['書名', '書況'],
+      ['小小迷路', '待售'],
+      ['小藍和小黃', '微斑'],
+    ]);
+    expect(books[0]?.status).toBe('待售');
+    expect(books[0]?.condition).toBe('');
+    expect(books[1]?.status).toBe('');
+    expect(books[1]?.condition).toBe('微斑');
   });
 
   it('reads the filled duplicate column and keeps the other one as an extra', () => {
     const books = rowsToBooks([
-      ['書名', '狀態', '新舊', '書況'],
-      ['小小迷路', '收藏', '近新', ''],
-      ['小藍和小黃', '待售', '', ''],
+      ['書名', '價格', '購入價格'],
+      ['小小迷路', '280', '300'],
+      ['小藍和小黃', '200', ''],
     ]);
-    expect(books[0]?.condition).toBe('收藏');
-    expect(books[0]?.extras).toEqual({ 新舊: '近新' });
-    expect(books[1]?.condition).toBe('待售');
+    expect(books[0]?.price).toBe(280);
+    expect(books[0]?.extras).toEqual({ 購入價格: '300' });
+    expect(books[1]?.price).toBe(200);
   });
 
   it('throws a readable error when the header is missing', () => {
@@ -165,20 +200,20 @@ describe('chooseColumns', () => {
   });
 
   it('picks the column people actually filled in', () => {
-    // `書況` is the more specific header, but this sheet only fills `狀態`.
-    const { candidates } = mapHeaderRow(['書名', '狀態', '書況']);
+    // `購入價格` is the more specific header, but this sheet only fills `價格`.
+    const { candidates } = mapHeaderRow(['書名', '價格', '購入價格']);
     const rows = [
-      ['小小迷路', '收藏', ''],
-      ['小藍和小黃', '待售', ''],
-      ['田鼠阿佛', '收藏', ''],
+      ['小小迷路', '280', ''],
+      ['小藍和小黃', '200', ''],
+      ['田鼠阿佛', '150', ''],
     ];
-    expect(chooseColumns(candidates, rows).condition).toBe(1);
+    expect(chooseColumns(candidates, rows).price).toBe(1);
   });
 
   it('falls back to the more specific header when both are equally filled', () => {
-    const { candidates } = mapHeaderRow(['書名', '狀態', '書況']);
-    const rows = [['小小迷路', '收藏', '二手']];
-    expect(chooseColumns(candidates, rows).condition).toBe(2);
+    const { candidates } = mapHeaderRow(['書名', '價格', '購入價格']);
+    const rows = [['小小迷路', '280', '300']];
+    expect(chooseColumns(candidates, rows).price).toBe(2);
   });
 });
 

@@ -4,9 +4,9 @@ import { searchToState, stateToSearch } from './url-state';
 
 describe('url state', () => {
   it('is empty when nothing is selected', () => {
-    expect(
-      stateToSearch({ filters: EMPTY_FILTERS, sort: 'default', view: 'grid', pageSize: 25 }),
-    ).toBe('');
+    expect(stateToSearch({ filters: EMPTY_FILTERS, sort: [], view: 'grid', pageSize: 25 })).toBe(
+      '',
+    );
   });
 
   it('round-trips filters, sort, view and page size', () => {
@@ -19,7 +19,10 @@ describe('url state', () => {
         },
         text: { ...EMPTY_FILTERS.text, title: '小' },
       },
-      sort: 'priceDesc' as const,
+      sort: [
+        { field: 'title' as const, direction: 'asc' as const },
+        { field: 'price' as const, direction: 'desc' as const },
+      ],
       view: 'table' as const,
       pageSize: 100 as const,
     };
@@ -31,7 +34,16 @@ describe('url state', () => {
   });
 
   it('ignores unknown sort and page size values', () => {
-    expect(searchToState('?sort=nope').sort).toBe('default');
+    expect(searchToState('?sort=nope').sort).toEqual([]);
+    expect(searchToState('?sort=title:asc,nope:asc').sort).toEqual([
+      { field: 'title', direction: 'asc' },
+    ]);
     expect(searchToState('?per=7').pageSize).toBe(25);
+  });
+
+  it('reads the single-key sorts written by earlier versions', () => {
+    expect(searchToState('?sort=priceDesc').sort).toEqual([{ field: 'price', direction: 'desc' }]);
+    expect(searchToState('?sort=title').sort).toEqual([{ field: 'title', direction: 'asc' }]);
+    expect(searchToState('?sort=default').sort).toEqual([]);
   });
 });

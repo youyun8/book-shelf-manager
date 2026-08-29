@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Book } from '../types';
 import { cn } from '../lib/cn';
-import { conditionClass, formatPrice } from '../lib/badge';
+import { statusClass, formatPrice } from '../lib/badge';
 import { IconClose, IconPencil } from './icons';
 
 interface BookDialogProps {
@@ -26,9 +26,13 @@ export function BookDialog({ book, onClose, onEdit }: BookDialogProps) {
         { label: '譯者', value: book.translator },
         { label: '出版社', value: book.publisher },
         { label: '適讀年齡', value: book.ageRange },
+        { label: '共讀方式', value: book.readingMode },
         { label: '購入管道', value: book.channel },
-        { label: '購入價格', value: formatPrice(book.price) },
+        { label: '價格', value: formatPrice(book.price) },
+        { label: '新舊', value: book.wear },
+        { label: '書況', value: book.condition },
         { label: '藏書位置', value: book.location },
+        { label: '備註', value: book.notes },
         { label: 'ISBN', value: book.isbn },
         ...Object.entries(book.extras).map(([label, value]) => ({ label, value })),
       ].filter((row) => row.value !== '' && row.value !== '—')
@@ -51,14 +55,14 @@ export function BookDialog({ book, onClose, onEdit }: BookDialogProps) {
               {book.publisher && <p className="mt-1 text-sm text-fg-muted">{book.publisher}</p>}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {book.condition && (
+              {book.status && (
                 <span
                   className={cn(
                     'rounded-full border px-2.5 py-1 text-xs font-medium',
-                    conditionClass(book.condition),
+                    statusClass(book.status),
                   )}
                 >
-                  {book.condition}
+                  {book.status}
                 </span>
               )}
               <button
@@ -93,7 +97,7 @@ export function BookDialog({ book, onClose, onEdit }: BookDialogProps) {
 
               {book.tags.length > 0 && (
                 <section>
-                  <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">分類標籤</h3>
+                  <h3 className="mb-1.5 text-xs font-semibold text-fg-subtle">建議標籤</h3>
                   <ul className="flex flex-wrap gap-1.5">
                     {book.tags.map((tag) => (
                       <li key={tag} className="chip">

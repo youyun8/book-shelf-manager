@@ -1,4 +1,4 @@
-import type { Book, FacetKey, Filters, SortKey } from '../types';
+import type { Book, FacetKey, Filters } from '../types';
 import { FACET_KEYS, TEXT_KEYS } from '../types';
 
 /** The values of a book for one checkbox facet. Empty cells match nothing. */
@@ -48,28 +48,4 @@ export function compareText(a: string, b: string): number {
   if (a === '') return 1;
   if (b === '') return -1;
   return collator.compare(a, b);
-}
-
-export function sortBooks(books: readonly Book[], sort: SortKey): Book[] {
-  const sorted = [...books];
-  switch (sort) {
-    case 'title':
-      return sorted.sort((a, b) => compareText(a.title, b.title));
-    case 'publisher':
-      return sorted.sort(
-        (a, b) => compareText(a.publisher, b.publisher) || compareText(a.title, b.title),
-      );
-    case 'priceAsc':
-    case 'priceDesc': {
-      const direction = sort === 'priceAsc' ? 1 : -1;
-      return sorted.sort((a, b) => {
-        if (a.price === null && b.price === null) return compareText(a.title, b.title);
-        if (a.price === null) return 1;
-        if (b.price === null) return -1;
-        return (a.price - b.price) * direction;
-      });
-    }
-    default:
-      return sorted;
-  }
 }

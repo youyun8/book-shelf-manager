@@ -1,12 +1,25 @@
 import type { Book, FacetKey, FacetOption, Filters } from '../types';
 import { FACET_KEYS } from '../types';
 import { applyFilters, facetValues, compareText } from './filter';
+import { ageSortKey } from './sort';
+import {
+  CONDITION_VALUES,
+  READING_MODE_VALUES,
+  STATUS_VALUES,
+  WEAR_VALUES,
+  rankOf,
+} from './vocabulary';
 
-/** Leading number of an age label, so `0-4 歲` sorts before `4-10 歲`. */
-export function ageSortKey(label: string): number {
-  const match = label.match(/-?\d+(\.\d+)?/);
-  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
-}
+/**
+ * Facets whose values have a natural order are listed in that order instead of
+ * by count, so `狀態` always reads 收藏 → 待售 and `新舊` always reads new to old.
+ */
+const ORDERED_FACETS: Partial<Record<FacetKey, readonly string[]>> = {
+  readingMode: READING_MODE_VALUES,
+  status: STATUS_VALUES,
+  wear: WEAR_VALUES,
+  condition: CONDITION_VALUES,
+};
 
 /**
  * Builds the checkbox options for one facet. Counts are computed against the
@@ -36,9 +49,15 @@ export function buildFacet(books: readonly Book[], filters: Filters, key: FacetK
     selected: selected.has(value),
   }));
 
+  const ordered = ORDERED_FACETS[key];
   if (key === 'ageRange') {
     options.sort(
       (a, b) => ageSortKey(a.value) - ageSortKey(b.value) || compareText(a.value, b.value),
+    );
+  } else if (ordered) {
+    options.sort(
+      (a, b) =>
+        rankOf(ordered, a.value) - rankOf(ordered, b.value) || compareText(a.value, b.value),
     );
   } else {
     options.sort((a, b) => b.count - a.count || compareText(a.value, b.value));
