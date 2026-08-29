@@ -12,6 +12,7 @@ import type {
 import { EMPTY_FILTERS } from '../types';
 import type { Account } from '../lib/api';
 import { api } from '../lib/api';
+import { cn } from '../lib/cn';
 import { applyFilters, countActiveFilters } from '../lib/filter';
 import { promoteSortField, sortBooks } from '../lib/sort';
 import { buildAllFacets } from '../lib/facets';
@@ -22,7 +23,7 @@ import { downloadXlsx } from '../lib/export-xlsx';
 import { searchToState, stateToSearch } from '../lib/url-state';
 import { readFilterPanelOpen, writeFilterPanelOpen } from '../lib/filter-panel';
 import { AppHeader } from './AppHeader';
-import { FilterPanel } from './FilterPanel';
+import { FilterPanel, FilterRail } from './FilterPanel';
 import { ActiveFilters } from './ActiveFilters';
 import { ResultToolbar } from './ResultToolbar';
 import { BookCard } from './BookCard';
@@ -307,13 +308,30 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
       />
 
       <div className="page-shell flex gap-6 px-4 py-6 sm:px-6">
-        {panelOpen && (
-          <aside className="hidden w-72 shrink-0 lg:block">
-            <div className="sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card">
-              {renderPanel({ onCollapse: () => setPanelOpen(false) })}
-            </div>
-          </aside>
-        )}
+        {/*
+          The sidebar slides rather than disappearing: its width animates and
+          the panel inside keeps its own, so the text is revealed and covered
+          instead of reflowing on every frame.
+        */}
+        <aside
+          className={cn(
+            'hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block',
+            panelOpen ? 'w-72' : 'w-14',
+          )}
+        >
+          <div
+            className={cn(
+              'sticky top-[4.75rem] flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-card',
+              panelOpen ? 'w-72 p-4' : 'w-14 p-2',
+            )}
+          >
+            {panelOpen ? (
+              renderPanel({ onCollapse: () => setPanelOpen(false) })
+            ) : (
+              <FilterRail activeCount={activeCount} onExpand={() => setPanelOpen(true)} />
+            )}
+          </div>
+        </aside>
 
         <main className="min-w-0 flex-1 space-y-4">
           <ResultToolbar
@@ -328,7 +346,6 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
             onViewChange={setView}
             onPageSizeChange={changePageSize}
             onOpenFilters={() => setDrawerOpen(true)}
-            onExpandFilters={panelOpen ? undefined : () => setPanelOpen(true)}
           />
 
           <ActiveFilters

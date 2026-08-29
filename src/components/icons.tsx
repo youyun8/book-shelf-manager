@@ -143,3 +143,11 @@ export const IconPanelCollapse = ({ className }: IconProps) => (
     <path d="m16.5 10-2 2 2 2" />
   </svg>
 );
+
+export const IconPanelExpand = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M10 4v16" />
+    <path d="m14 10 2 2-2 2" />
+  </svg>
+);

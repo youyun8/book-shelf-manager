@@ -1,7 +1,7 @@
 import type { FacetKey, FacetOption, Filters, TextKey } from '../types';
 import { FACET_KEYS, FACET_LABELS, TEXT_KEYS, TEXT_LABELS } from '../types';
 import { FacetSection } from './FacetSection';
-import { IconClose, IconPanelCollapse, IconSearch } from './icons';
+import { IconClose, IconPanelCollapse, IconPanelExpand, IconSearch } from './icons';
 
 interface FilterPanelProps {
   filters: Filters;
@@ -52,6 +52,7 @@ export function FilterPanel({
               type="button"
               onClick={onCollapse}
               aria-label="收合篩選欄"
+              aria-expanded
               title="收合篩選欄"
               className="focus-ring rounded-lg p-1.5 text-fg-subtle transition hover:bg-surface-muted hover:text-fg"
             >
@@ -107,5 +108,36 @@ export function FilterPanel({
         ))}
       </div>
     </div>
+  );
+}
+
+interface FilterRailProps {
+  activeCount: number;
+  onExpand: () => void;
+}
+
+/**
+ * What is left of the sidebar once it is collapsed: the same toggle, in the
+ * same place, so bringing the filters back is where putting them away was.
+ * The badge keeps the reader from losing track of conditions they cannot see.
+ */
+export function FilterRail({ activeCount, onExpand }: FilterRailProps) {
+  const label = activeCount === 0 ? '展開篩選欄' : `展開篩選欄（${activeCount} 個條件）`;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      aria-label={label}
+      aria-expanded={false}
+      title={label}
+      className="focus-ring flex w-full flex-col items-center gap-1.5 rounded-lg p-2 text-fg-subtle transition hover:bg-surface-muted hover:text-fg"
+    >
+      <IconPanelExpand className="h-5 w-5" />
+      {activeCount > 0 && (
+        <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">
+          {activeCount}
+        </span>
+      )}
+    </button>
   );
 }
