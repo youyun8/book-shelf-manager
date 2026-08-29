@@ -1,5 +1,5 @@
 import type { FacetKey, FacetOption, Filters, TextKey } from '../types';
-import { FACET_KEYS, FACET_LABELS, TEXT_KEYS, TEXT_LABELS } from '../types';
+import { FACET_KEYS, FIELD_LABELS, TEXT_KEYS } from '../types';
 import { FacetSection } from './FacetSection';
 import { IconSearch } from './icons';
 
@@ -69,7 +69,7 @@ export function FiltersPage({
                 htmlFor={`filter-${key}`}
                 className="mb-1 block text-xs font-medium text-fg-muted"
               >
-                {TEXT_LABELS[key]}
+                {FIELD_LABELS[key]}
               </label>
               <div className="relative">
                 <IconSearch className="pointer-events-none absolute top-2.5 left-2.5 h-4 w-4 text-fg-subtle" />
@@ -91,7 +91,7 @@ export function FiltersPage({
         {FACET_KEYS.map((key) => (
           <FacetSection
             key={key}
-            label={FACET_LABELS[key]}
+            label={FIELD_LABELS[key]}
             options={facets[key]}
             onToggle={(value) => onToggleFacet(key, value)}
             onClear={() => onClearFacet(key)}

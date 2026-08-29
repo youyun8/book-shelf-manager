@@ -15,6 +15,7 @@ import { api } from '../lib/api';
 import { applyFilters, countActiveFilters } from '../lib/filter';
 import { promoteSortField, sortBooks } from '../lib/sort';
 import { buildAllFacets } from '../lib/facets';
+import { copyCount, countCopiesByTitle, otherCopies } from '../lib/copies';
 import { pageCount as countPages } from '../lib/pagination';
 import { SpreadsheetError } from '../lib/parse';
 import { readBooksFromFile } from '../lib/read-spreadsheet';
@@ -232,6 +233,8 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
   );
 
   const facets = useMemo(() => buildAllFacets(books, filters), [books, filters]);
+  // Most titles are on the shelf more than once, so every view says how many.
+  const copies = useMemo(() => countCopiesByTitle(books), [books]);
   const results = useMemo(
     () => sortBooks(applyFilters(books, filters), sort),
     [books, filters, sort],
@@ -388,7 +391,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {pageResults.map((book) => (
                     <li key={book.id} className="flex">
-                      <BookCard book={book} onOpen={setSelected} />
+                      <BookCard book={book} copies={copyCount(copies, book)} onOpen={setSelected} />
                     </li>
                   ))}
                 </ul>
@@ -422,6 +425,7 @@ export function Library({ account, onSignOut, onExpire }: LibraryProps) {
 
       <BookDialog
         book={selected}
+        others={selected ? otherCopies(books, selected) : []}
         onClose={() => setSelected(null)}
         onEdit={(book) => {
           setSelected(null);

@@ -10,8 +10,16 @@ import {
 import { mapHeaderRow, normalizeHeader } from './columns';
 import type { Row } from './parse';
 
+// The columns of the source sheet, in its own order.
 const HEADER = [
   '書名',
+  '狀態(收藏/待售/待共讀)',
+  '購入管道',
+  '價格',
+  '新舊',
+  '書況(無/點/微/嚴重)',
+  '位置',
+  '備註',
   '作者',
   '繪者',
   '譯者',
@@ -20,17 +28,17 @@ const HEADER = [
   '適讀年齡',
   '共讀方式',
   '建議標籤',
-  '購入管道',
-  '價格',
-  '狀態(收藏/待售/待共讀)',
-  '新舊',
-  '書況(無/點/微/嚴重)',
-  '藏書位置',
-  '備註',
 ];
 
 const ROW = [
   '走在夢的路上',
+  '收藏',
+  '誠品書店',
+  'NT$320',
+  '近新',
+  '微斑',
+  '竹北',
+  '朋友送的',
   '刀根里衣',
   '刀根里衣',
   '蘇懿禎',
@@ -39,13 +47,6 @@ const ROW = [
   '4-10 歲',
   '親子共讀',
   '療癒、美感、夢想',
-  '誠品書店',
-  'NT$320',
-  '收藏',
-  '近新',
-  '微斑',
-  '客廳書櫃 A1',
-  '朋友送的',
 ];
 
 describe('normalizeHeader', () => {
@@ -60,16 +61,17 @@ describe('mapHeaderRow', () => {
   it('maps the sample header to book fields', () => {
     const { fields } = mapHeaderRow(HEADER);
     expect(fields.title).toBe(0);
-    expect(fields.illustrator).toBe(2);
-    expect(fields.summary).toBe(5);
-    expect(fields.readingMode).toBe(7);
-    expect(fields.tags).toBe(8);
-    expect(fields.price).toBe(10);
-    expect(fields.status).toBe(11);
-    expect(fields.wear).toBe(12);
-    expect(fields.condition).toBe(13);
-    expect(fields.location).toBe(14);
-    expect(fields.notes).toBe(15);
+    expect(fields.status).toBe(1);
+    expect(fields.channel).toBe(2);
+    expect(fields.price).toBe(3);
+    expect(fields.wear).toBe(4);
+    expect(fields.condition).toBe(5);
+    expect(fields.location).toBe(6);
+    expect(fields.notes).toBe(7);
+    expect(fields.illustrator).toBe(9);
+    expect(fields.summary).toBe(12);
+    expect(fields.readingMode).toBe(14);
+    expect(fields.tags).toBe(15);
   });
 
   it('keeps 狀態, 新舊 and 書況 apart', () => {
@@ -79,8 +81,8 @@ describe('mapHeaderRow', () => {
     expect(fields.wear).toBe(3);
   });
 
-  it('prefers the most specific alias when several columns look similar', () => {
-    const { fields, candidates } = mapHeaderRow(['書名', '價格', '購入價格']);
+  it('prefers the header the sheet itself uses when columns look similar', () => {
+    const { fields, candidates } = mapHeaderRow(['書名', '購入價格', '價格']);
     expect(fields.price).toBe(2);
     expect(candidates.price).toEqual([2, 1]);
   });
@@ -141,7 +143,7 @@ describe('rowsToBooks', () => {
     expect(book?.status).toBe('收藏');
     expect(book?.wear).toBe('近新');
     expect(book?.condition).toBe('微斑');
-    expect(book?.location).toBe('客廳書櫃 A1');
+    expect(book?.location).toBe('竹北');
     expect(book?.notes).toBe('朋友送的');
   });
 
@@ -180,6 +182,18 @@ describe('rowsToBooks', () => {
     expect(books[1]?.price).toBe(200);
   });
 
+  it('keeps every row of a repeated title as its own copy', () => {
+    const books = rowsToBooks([
+      ['書名', '狀態', '購入管道'],
+      ['TIDY 整潔', '收藏', '小馬'],
+      ['TIDY 整潔', '待共讀', '老派購物學'],
+      ['TIDY 整潔', '收藏', '小馬'],
+    ]);
+    expect(books).toHaveLength(3);
+    expect(new Set(books.map((item) => item.id)).size).toBe(3);
+    expect(books.map((item) => item.status)).toEqual(['收藏', '待共讀', '收藏']);
+  });
+
   it('throws a readable error when the header is missing', () => {
     expect(() =>
       rowsToBooks([
@@ -200,20 +214,20 @@ describe('chooseColumns', () => {
   });
 
   it('picks the column people actually filled in', () => {
-    // `購入價格` is the more specific header, but this sheet only fills `價格`.
+    // `價格` is the sheet's own header, but this one only fills `購入價格`.
     const { candidates } = mapHeaderRow(['書名', '價格', '購入價格']);
     const rows = [
-      ['小小迷路', '280', ''],
-      ['小藍和小黃', '200', ''],
-      ['田鼠阿佛', '150', ''],
+      ['小小迷路', '', '280'],
+      ['小藍和小黃', '', '200'],
+      ['田鼠阿佛', '', '150'],
     ];
-    expect(chooseColumns(candidates, rows).price).toBe(1);
+    expect(chooseColumns(candidates, rows).price).toBe(2);
   });
 
-  it('falls back to the more specific header when both are equally filled', () => {
+  it('falls back to the sheet\u2019s own header when both are equally filled', () => {
     const { candidates } = mapHeaderRow(['書名', '價格', '購入價格']);
     const rows = [['小小迷路', '280', '300']];
-    expect(chooseColumns(candidates, rows).price).toBe(2);
+    expect(chooseColumns(candidates, rows).price).toBe(1);
   });
 });
 

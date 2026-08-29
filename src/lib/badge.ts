@@ -6,14 +6,15 @@ const STATUS_STYLES: { match: string[]; className: string }[] = [
       'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300',
   },
   {
-    match: ['待售', '出售', '販售'],
-    className:
-      'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300',
-  },
-  {
+    // Before 待售, so 絕版待售 reads as out of print rather than plain for sale.
     match: ['絕版', '交換'],
     className:
       'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-300',
+  },
+  {
+    match: ['待售', '出售', '販售'],
+    className:
+      'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300',
   },
   {
     match: ['待共讀', '共讀'],

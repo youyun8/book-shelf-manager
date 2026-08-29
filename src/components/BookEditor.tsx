@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Book } from '../types';
+import { FIELD_LABELS } from '../types';
 import { splitTags } from '../lib/parse';
 import {
   CONDITION_VALUES,
@@ -13,6 +14,13 @@ type Draft = Omit<Book, 'id' | 'tags' | 'extras'> & { tags: string };
 
 const EMPTY: Draft = {
   title: '',
+  status: '',
+  channel: '',
+  price: null,
+  wear: '',
+  condition: '',
+  location: '',
+  notes: '',
   author: '',
   illustrator: '',
   translator: '',
@@ -21,13 +29,6 @@ const EMPTY: Draft = {
   ageRange: '',
   readingMode: '',
   tags: '',
-  channel: '',
-  price: null,
-  status: '',
-  wear: '',
-  condition: '',
-  location: '',
-  notes: '',
   isbn: '',
 };
 
@@ -40,19 +41,32 @@ const FIELDS: {
   label: string;
   placeholder?: string;
   options?: readonly string[];
+  /** The price is a number, so it gets its own input rather than a text one. */
+  numeric?: boolean;
 }[] = [
-  { key: 'author', label: '作者' },
-  { key: 'illustrator', label: '繪者' },
-  { key: 'translator', label: '譯者' },
-  { key: 'publisher', label: '出版社' },
-  { key: 'ageRange', label: '適讀年齡', placeholder: '例如 3-6 歲' },
-  { key: 'readingMode', label: '共讀方式', options: READING_MODE_VALUES },
-  { key: 'channel', label: '購入管道' },
-  { key: 'status', label: '狀態', placeholder: '例如 收藏 / 待售', options: STATUS_VALUES },
-  { key: 'wear', label: '新舊', placeholder: '例如 近新 / 9新', options: WEAR_VALUES },
-  { key: 'condition', label: '書況', placeholder: '例如 無 / 微斑', options: CONDITION_VALUES },
-  { key: 'location', label: '藏書位置' },
-  { key: 'isbn', label: 'ISBN', placeholder: '例如 9789861897271' },
+  {
+    key: 'status',
+    label: FIELD_LABELS.status,
+    placeholder: '例如 收藏 / 待售',
+    options: STATUS_VALUES,
+  },
+  { key: 'channel', label: FIELD_LABELS.channel },
+  { key: 'price', label: FIELD_LABELS.price, numeric: true },
+  { key: 'wear', label: FIELD_LABELS.wear, placeholder: '例如 近新 / 9新', options: WEAR_VALUES },
+  {
+    key: 'condition',
+    label: FIELD_LABELS.condition,
+    placeholder: '例如 無 / 微斑',
+    options: CONDITION_VALUES,
+  },
+  { key: 'location', label: FIELD_LABELS.location, placeholder: '例如 竹北 / 辦公室' },
+  { key: 'author', label: FIELD_LABELS.author },
+  { key: 'illustrator', label: FIELD_LABELS.illustrator },
+  { key: 'translator', label: FIELD_LABELS.translator },
+  { key: 'publisher', label: FIELD_LABELS.publisher },
+  { key: 'ageRange', label: FIELD_LABELS.ageRange, placeholder: '例如 3-6 歲' },
+  { key: 'readingMode', label: FIELD_LABELS.readingMode, options: READING_MODE_VALUES },
+  { key: 'isbn', label: FIELD_LABELS.isbn, placeholder: '例如 9789861897271' },
 ];
 
 function toDraft(book: Book | null): Draft {
@@ -154,14 +168,31 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
                   >
                     {field.label}
                   </label>
-                  <input
-                    id={`book-${field.key}`}
-                    list={field.options ? `book-${field.key}-options` : undefined}
-                    value={String(draft[field.key] ?? '')}
-                    placeholder={field.placeholder}
-                    onChange={(event) => set(field.key, event.target.value)}
-                    className="field"
-                  />
+                  {field.numeric ? (
+                    <input
+                      id={`book-${field.key}`}
+                      inputMode="decimal"
+                      value={draft.price === null ? '' : String(draft.price)}
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        const value = raw === '' ? null : Number(raw.replace(/[^\d.-]/g, ''));
+                        setDraft((current) => ({
+                          ...current,
+                          price: value === null || Number.isNaN(value) ? null : value,
+                        }));
+                      }}
+                      className="field"
+                    />
+                  ) : (
+                    <input
+                      id={`book-${field.key}`}
+                      list={field.options ? `book-${field.key}-options` : undefined}
+                      value={String(draft[field.key] ?? '')}
+                      placeholder={field.placeholder}
+                      onChange={(event) => set(field.key, event.target.value)}
+                      className="field"
+                    />
+                  )}
                   {field.options && (
                     <datalist id={`book-${field.key}-options`}>
                       {field.options.map((option) => (
@@ -171,41 +202,18 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
                   )}
                 </div>
               ))}
-
-              <div>
-                <label
-                  htmlFor="book-price"
-                  className="mb-1 block text-xs font-medium text-fg-muted"
-                >
-                  價格
-                </label>
-                <input
-                  id="book-price"
-                  inputMode="decimal"
-                  value={draft.price === null ? '' : String(draft.price)}
-                  onChange={(event) => {
-                    const raw = event.target.value.trim();
-                    const value = raw === '' ? null : Number(raw.replace(/[^\d.-]/g, ''));
-                    setDraft((current) => ({
-                      ...current,
-                      price: value === null || Number.isNaN(value) ? null : value,
-                    }));
-                  }}
-                  className="field"
-                />
-              </div>
             </div>
 
             <div>
-              <label htmlFor="book-tags" className="mb-1 block text-xs font-medium text-fg-muted">
-                建議標籤
+              <label htmlFor="book-notes" className="mb-1 block text-xs font-medium text-fg-muted">
+                備註
               </label>
-              <input
-                id="book-tags"
-                value={draft.tags}
-                placeholder="用、或 , 分隔，例如 療癒、美感"
-                onChange={(event) => set('tags', event.target.value)}
-                className="field"
+              <textarea
+                id="book-notes"
+                rows={2}
+                value={draft.notes}
+                onChange={(event) => set('notes', event.target.value)}
+                className="field resize-y"
               />
             </div>
 
@@ -226,15 +234,15 @@ export function BookEditor({ book, saving, onSave, onDelete, onClose }: BookEdit
             </div>
 
             <div>
-              <label htmlFor="book-notes" className="mb-1 block text-xs font-medium text-fg-muted">
-                備註
+              <label htmlFor="book-tags" className="mb-1 block text-xs font-medium text-fg-muted">
+                建議標籤
               </label>
-              <textarea
-                id="book-notes"
-                rows={2}
-                value={draft.notes}
-                onChange={(event) => set('notes', event.target.value)}
-                className="field resize-y"
+              <input
+                id="book-tags"
+                value={draft.tags}
+                placeholder="用、或 , 分隔，例如 療癒、美感"
+                onChange={(event) => set('tags', event.target.value)}
+                className="field"
               />
             </div>
           </div>
